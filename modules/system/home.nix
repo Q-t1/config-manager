@@ -1,16 +1,16 @@
-{ inputs, lib, config, pkgs, ... }:
+# modules/system/home/defaults.nix
+{ config, pkgs, ... }:
 
 {
-  programs.home-manager.enable = true;
-
   home.packages = with pkgs; [
+    neovim
     git
   ];
 
   programs.git = {
     enable = true;
-    userName = "Qt1";
-    userEmail = "quentin.roccia@gmail.com";
+    userName = "Quentin";
+    userEmail = "quentin@example.com";
   };
 
   programs.neovim = {
