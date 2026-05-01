@@ -1,6 +1,11 @@
-{ pkgs, ... }:
+{ pkgs, profile, ... }:
 
 {
+
+  imports = [
+    ./profiles/${profile}.nix
+  ];
+
   programs.home-manager.enable = true;
   home.packages = with pkgs; [
     neovim
