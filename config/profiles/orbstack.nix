@@ -3,7 +3,8 @@
 {
 
   home.packages = with pkgs; [
-    vim
+    ghostty-bin
+    zed-editor
   ];
 
 }
