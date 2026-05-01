@@ -12,21 +12,27 @@
   outputs = { nixpkgs, home-manager, ... }:
     let
       username = "qt1";
-      mkHome = { profile, system }:
+
+      mkHome = { profile, system, homeDirectory ? "/home/${username}" }:
         home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.${system};
+
           extraSpecialArgs = {
             inherit profile system username;
           };
+
           modules = [
             ./common/default.nix
-          ];
 
-          # Non‑module-level items (would be overridden by modules anyway)
-          config.home.username = username;
-          config.home.homeDirectory = "/home/${username}";
-          config.home.stateVersion = "25.11";
-          config.programs.home-manager.enable = true;
+            {
+              home = {
+                inherit username homeDirectory;
+                stateVersion = "25.11";
+              };
+
+              programs.home-manager.enable = true;
+            }
+          ];
         };
     in
     {
