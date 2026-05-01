@@ -2,11 +2,8 @@
 
 {
 
-  environment.systemPackages = [
-    pkgs.ghostty.terminfo
-  ];
-
   home.packages = with pkgs; [
+    ghostty.terminfo
     zed-editor
   ];
 
