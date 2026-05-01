@@ -39,7 +39,7 @@
       homeConfigurations = {
         orbstack = mkHome {
           profile = "orbstack";
-          system = "aarch64-linux";
+          system = "aarch64-darwin";
         };
 
         foundation = mkHome {
