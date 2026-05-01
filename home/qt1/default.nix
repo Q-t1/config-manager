@@ -9,6 +9,9 @@
   home.packages = with pkgs; [
     neovim
     git
+
+    zed-editor
+    ghostty-bin
   ];
 
   programs.git = {
