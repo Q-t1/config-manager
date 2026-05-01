@@ -4,5 +4,5 @@
     ./hardware-configuration.nix
   ];
 
-  networking.hostName = "orbstack";
+  networking.hostName = "nix-foundation";
 }
