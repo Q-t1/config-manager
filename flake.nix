@@ -1,38 +1,32 @@
 {
-  description = "NixOS config for orbstack + foundation";
+  description = "Qt1 Home Manager config";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = inputs @ { self, nixpkgs, home-manager, ... }:
-    let
-      hosts = {
-        orbstack = {
-          system = "aarch64-linux";
-        };
-        foundation = {
-          system = "x86_64-linux";
-        };
-      };
+  outputs =
+    { self, nixpkgs, home-manager, flake-utils, ... }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+        username = "qt1";  # your user
+      in
+      {
+        homeConfigurations."${username}@${system}" =
+          home-manager.lib.homeManagerConfiguration {
+            inherit pkgs username;
+            homeDirectory = "/home/${username}";
+            stateVersion = "25.11";
 
-      mkHost = name:
-        nixpkgs.lib.nixosSystem {
-          system = hosts.${name}.system;
-          specialArgs = { inherit inputs name; };
-          modules = [
-            ./hosts/${name}/default.nix
-            home-manager.nixosModules.home-manager
-          ];
-        };
-    in {
-      nixosConfigurations = {
-        orbstack = mkHost "orbstack";
-        foundation = mkHost "foundation";
-      };
-    };
+            modules = [
+              ./home/default.nix
+            ];
+          };
+      });
 }
