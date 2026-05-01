@@ -22,7 +22,7 @@
           };
 
           modules = [
-            ./common/default.nix
+            ./config/common/default.nix
 
             {
               home = {

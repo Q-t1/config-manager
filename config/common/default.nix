@@ -3,7 +3,7 @@
 {
 
   imports = [
-    ./profiles/${profile}.nix
+    ../profiles/${profile}.nix
   ];
 
   programs.home-manager.enable = true;
