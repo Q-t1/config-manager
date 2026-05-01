@@ -3,7 +3,7 @@
 {
 
   home.packages = with pkgs; [
-    ghostty-bin
+    ghostty
     zed-editor
   ];
 
