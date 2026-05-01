@@ -25,7 +25,7 @@
             stateVersion = "25.11";
 
             modules = [
-              ./home/default.nix
+              ./common/default.nix
             ];
           };
       });
