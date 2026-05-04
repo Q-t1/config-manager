@@ -26,8 +26,6 @@ nix build --print-out-paths '€#nixosConfigurations.infra-t0.config.system.buil
 
 # Profile matrix
 
-## NixOS Host Profiles
-
 | Host     | System        | Profile  | Home Directory | Kind  |
 |----------|---------------|----------|----------------|-------|
 | orbstack | aarch64-linux | orbstack | /home/qt1      | home  |
