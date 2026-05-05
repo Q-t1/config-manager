@@ -2,10 +2,6 @@
 
 {
 
-  home.sessionVariables = {
-    NIX_SSL_CERT_FILE = "${config.home.homeDirectory}/.secrets/bleu-rootca.pem";
-  };
-
   home.activation.importBleuRootCA = lib.hm.dag.entryAfter ["writeBoundary"] ''
     # Ensure the directory exists
     mkdir -p $HOME/.pki/nssdb
