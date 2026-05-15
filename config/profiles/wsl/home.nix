@@ -18,4 +18,9 @@
   home.packages = with pkgs; [
     chromium
   ];
+
+  programs.zsh.shellAliases = {
+    chrome = "chromium >> /dev/null 2>&1 &";
+  };
+
 }
