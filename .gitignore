@@ -9,5 +9,3 @@ secrets/
 .idea/dictionaries
 .idea/vcs.xml
 .idea/jsLibraryMappings.xml
-
-config/profiles/wsl/ssl/*.pem

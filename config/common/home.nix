@@ -15,6 +15,7 @@
     package-version-server
 
     curl
+    wget
   ];
 
   programs.zsh = {

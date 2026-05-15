@@ -13,6 +13,10 @@
 
   boot.kernelModules = [ "kvm-intel" ];
 
+  security.pki.certificateFiles = [
+    ./ssl/bleu-rootca.pem
+  ];
+
   virtualisation.docker = {
     enable = true;
   };
