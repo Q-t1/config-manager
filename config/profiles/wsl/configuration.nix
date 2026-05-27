@@ -47,18 +47,15 @@
     kubernetes-helm
   ];
 
-  sops.secrets.bleu-rootca = {
+  sops.secrets.tlsCert = {
     sopsFile = ./secrets/bleu-rootca.yaml;
-    key = "tlsCert";
-  };
-
-  sops.templates."bleu-rootca.pem" = {
-    content = ''
-      {{ .tlsCert }}
-    '';
+    owner = "root";
+    mode = "0444";
   };
 
   environment.etc."pki/tls/certs/bleu-rootca.pem".source =
-    config.sops.templates."bleu-rootca.pem".path;
+    config.sops.secrets.tlsCert.path;
+
+  environment.variables.CURL_CA_BUNDLE = "/etc/pki/tls/certs/bleu-rootca.pem";
 
 }
