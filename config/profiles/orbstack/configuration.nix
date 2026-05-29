@@ -46,7 +46,7 @@
   networking = {
     dhcpcd.enable = false;
     useDHCP = false;
-    useHostResolvConf = false;
+    resolvconf.enable = false;
   };
 
   systemd.network = {
