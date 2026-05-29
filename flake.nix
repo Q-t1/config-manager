@@ -16,7 +16,13 @@
     };
   };
 
-  outputs = inputs@{ nixpkgs, home-manager, sops-nix, ... }:
+  outputs =
+    inputs@{
+      nixpkgs,
+      home-manager,
+      sops-nix,
+      ...
+    }:
     let
       lib = nixpkgs.lib;
       username = "qt1";
@@ -27,7 +33,7 @@
           system = "aarch64-linux";
           profile = "orbstack";
           homeDirectory = "/home/${username}";
-          kind = "home";
+          kind = "nixos";
         };
 
         infra-t0 = {
@@ -64,7 +70,8 @@
         programs.home-manager.enable = true;
       };
 
-      mkHome = _: host:
+      mkHome =
+        _: host:
         home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.${host.system};
           extraSpecialArgs = {
@@ -74,7 +81,8 @@
           modules = [ (mkHmModule host) ];
         };
 
-      mkNixos = _: host:
+      mkNixos =
+        _: host:
         lib.nixosSystem {
           system = host.system;
           specialArgs = {
@@ -98,11 +106,9 @@
           ];
         };
 
-      homeHosts =
-        lib.filterAttrs (_: host: host.kind == "home") hosts;
+      homeHosts = lib.filterAttrs (_: host: host.kind == "home") hosts;
 
-      allNixosHosts =
-        lib.filterAttrs (_: host: host.kind == "nixos") hosts;
+      allNixosHosts = lib.filterAttrs (_: host: host.kind == "nixos") hosts;
     in
     {
       homeConfigurations = lib.mapAttrs mkHome homeHosts;

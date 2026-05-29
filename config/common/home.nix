@@ -27,10 +27,12 @@
 
   programs.git = {
     enable = true;
-    userName = "Quentin R.";
-    userEmail = "quentin@nixos.fr";
 
-    extraConfig = {
+    settings = {
+      user = {
+        name = "Quentin R.";
+        email = "quentin@nixos.fr";
+      };
       core.autocrlf = "input";
       core.eol = "lf";
       push.autoSetupRemote = true;
