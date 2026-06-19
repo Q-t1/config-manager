@@ -9,4 +9,8 @@
     enable = true;
   };
 
+  programs.chromium = {
+    enable = true;
+  };
+
 }

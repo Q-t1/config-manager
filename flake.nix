@@ -4,11 +4,7 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     nixos-wsl.url = "github:nix-community/NixOS-WSL";
-
-    sops-nix = {
-      url = "github:mic92/sops-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/*";
 
     home-manager = {
       url = "github:nix-community/home-manager";
@@ -20,7 +16,6 @@
     inputs@{
       nixpkgs,
       home-manager,
-      sops-nix,
       ...
     }:
     let
@@ -91,7 +86,7 @@
           };
           modules = [
             inputs.nixos-wsl.nixosModules.wsl
-            sops-nix.nixosModules.sops
+            inputs.determinate.nixosModules.default
             ./config/profiles/${host.profile}/configuration.nix
             home-manager.nixosModules.home-manager
             {
