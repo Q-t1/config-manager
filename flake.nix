@@ -84,8 +84,8 @@
             inherit inputs username;
             inherit (host) profile system;
           };
+
           modules = [
-            inputs.nixos-wsl.nixosModules.wsl
             inputs.determinate.nixosModules.default
             ./config/profiles/${host.profile}/configuration.nix
             home-manager.nixosModules.home-manager
@@ -98,6 +98,8 @@
               };
               home-manager.users.${username} = mkHmModule host;
             }
+          ] ++ lib.optionals (host.kind == "nixos" && host.profile == "wsl") [
+            inputs.nixos-wsl.nixosModules.wsl
           ];
         };
 
