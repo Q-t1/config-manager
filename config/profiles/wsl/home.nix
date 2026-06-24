@@ -1,16 +1,20 @@
-{ config, pkgs, lib, ... }:
+{ pkgs, inputs, ... }:
 
 {
-  programs.zsh.shellAliases = {
-    chrome = "chromium >> /dev/null 2>&1 &";
-  };
+  imports = [ inputs.zen-browser.homeModules.default ];
 
-  programs.zellij = {
-    enable = true;
-  };
+  home.packages = with pkgs; [
+    skopeo
+    jq
+    yq
+    kubectl
+    kubernetes-helm
+    openssl
+    fluxcd
+    claude-code
+  ];
 
-  programs.chromium = {
-    enable = true;
-  };
+  programs.zen-browser.enable = true;
 
+  programs.zellij.enable = true;
 }

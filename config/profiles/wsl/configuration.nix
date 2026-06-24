@@ -32,19 +32,6 @@
 
   programs.zsh.enable = true;
 
-  environment.systemPackages = with pkgs; [
-    neovim
-    cacert
-    skopeo
-    jq
-    yq
-    kubectl
-    kubernetes-helm
-    openssl
-    fluxcd
-    claude-code
-  ];
-
   environment.etc."containers/policy.json".text = builtins.toJSON {
     default = [
       { type = "insecureAcceptAnything"; }
