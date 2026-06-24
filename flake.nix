@@ -9,12 +9,14 @@
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    flake-utils.url = "github:numtide/flake-utils";
   };
 
   outputs =
     inputs@{
       nixpkgs,
       home-manager,
+      flake-utils,
       ...
     }:
     let
@@ -106,8 +108,13 @@
       homeHosts = lib.filterAttrs (_: host: host.kind == "home") hosts;
 
       allNixosHosts = lib.filterAttrs (_: host: host.kind == "nixos") hosts;
+
+      systems = [ "aarch64-linux" "x86_64-linux" ];
     in
-    {
+    flake-utils.lib.eachSystem systems (system: {
+      formatter = nixpkgs.legacyPackages.${system}.nixfmt-rfc-style;
+    })
+    // {
       homeConfigurations = lib.mapAttrs mkHome homeHosts;
       nixosConfigurations = lib.mapAttrs mkNixos allNixosHosts;
     };
