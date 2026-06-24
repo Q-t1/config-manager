@@ -28,7 +28,7 @@
     settings = {
       user = {
         name = "Quentin R.";
-        email = "quentin.roccia@bleucloud.fr";
+        email = "quentin.roccia@gmail.com";
       };
       core.autocrlf = "input";
       core.eol = "lf";

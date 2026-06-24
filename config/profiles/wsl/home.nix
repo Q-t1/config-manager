@@ -1,4 +1,4 @@
-{ pkgs, inputs, ... }:
+{ pkgs, inputs, lib, ... }:
 
 {
   imports = [ inputs.zen-browser.homeModules.default ];
@@ -13,6 +13,8 @@
     fluxcd
     claude-code
   ];
+
+  programs.git.settings.user.email = lib.mkForce "quentin.roccia@bleucloud.fr";
 
   programs.zen-browser.enable = true;
 
