@@ -1,4 +1,4 @@
-{ pkgs, inputs, lib, ... }:
+{ pkgs, inputs, lib, config, ... }:
 
 {
   imports = [ inputs.zen-browser.homeModules.default ];
@@ -30,6 +30,22 @@
       };
     };
   };
+
+  # Certificates.Install policy doesn't persist to the NSS db on Linux;
+  # import directly via certutil on every home-manager activation instead.
+  home.activation.zenTrustBleuCA = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    zenProfile="${config.xdg.configHome}/zen/default"
+    certFile="${./certs/bleu-rootca.pem}"
+    if [[ -d "$zenProfile" ]] && [[ -f "$zenProfile/cert9.db" ]]; then
+      if ! ${pkgs.nss.tools}/bin/certutil -L -d "$zenProfile" 2>/dev/null | grep -q "bleu.local"; then
+        run ${pkgs.nss.tools}/bin/certutil -A \
+          -n "bleu.local-SUBCA1-Issuing-CA" \
+          -t "CT,C,C" \
+          -i "$certFile" \
+          -d "$zenProfile"
+      fi
+    fi
+  '';
 
   programs.zsh.shellAliases.zen = "MOZ_ENABLE_WAYLAND=1 zen-beta &>/dev/null & disown";
 
