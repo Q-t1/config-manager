@@ -23,7 +23,7 @@
     let
       lib = nixpkgs.lib;
       username = "qt1";
-      stateVersion = "25.11";
+      stateVersion = "26.05";
 
       profilesDir = ./config/profiles;
 

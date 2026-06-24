@@ -24,10 +24,14 @@
         default = "google";
         force = true;
       };
+      settings = {
+        "layers.acceleration.disabled" = true;
+        "gfx.webrender.compositor" = false;
+      };
     };
   };
 
-  programs.zsh.shellAliases.zen = "zen-beta &>/dev/null & disown";
+  programs.zsh.shellAliases.zen = "MOZ_ENABLE_WAYLAND=1 zen-beta &>/dev/null & disown";
 
   programs.zellij.enable = true;
 }

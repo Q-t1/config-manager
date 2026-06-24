@@ -28,6 +28,8 @@
     shell = pkgs.zsh;
   };
 
+  system.stateVersion = "26.05";
+
   services.dbus.enable = true;
 
   programs.zsh.enable = true;
