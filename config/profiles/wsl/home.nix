@@ -16,9 +16,12 @@
 
   programs.git.settings.user.email = lib.mkForce "quentin.roccia@bleucloud.fr";
 
-  programs.zen-browser.enable = true;
+  programs.zen-browser = {
+    enable = true;
+    profiles.default.settings."security.enterprise_roots.enabled" = true;
+  };
 
-  programs.zsh.shellAliases.zen-browser = "zen-beta";
+  programs.zsh.shellAliases.zen = "zen-beta";
 
   programs.zellij.enable = true;
 }
