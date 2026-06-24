@@ -14,6 +14,8 @@
     claude-code
   ];
 
+  programs.git.settings.user.email = "quentin.roccia@bleucloud.fr";
+
   programs.zen-browser.enable = true;
 
   programs.zellij.enable = true;
