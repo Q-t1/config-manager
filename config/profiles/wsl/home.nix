@@ -18,5 +18,7 @@
 
   programs.zen-browser.enable = true;
 
+  programs.zsh.shellAliases.zen-browser = "zen-beta";
+
   programs.zellij.enable = true;
 }
