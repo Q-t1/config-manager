@@ -6,10 +6,7 @@
     defaultUser = "qt1";
   };
 
-  nix.settings.experimental-features = [
-    "nix-command"
-    "flakes"
-  ];
+  nixpkgs.config.allowUnfree = true;
 
   boot.kernelModules = [ "kvm-intel" ];
 
@@ -35,16 +32,15 @@
 
   programs.zsh.enable = true;
 
-  environment.systemPackages = with pkgs; [
-    neovim
-    cacert
-    skopeo
-    jq
-    yq
-    kubectl
-    kubernetes-helm
-    openssl
-    fluxcd
-  ];
+  environment.etc."containers/policy.json".text = builtins.toJSON {
+    default = [
+      { type = "insecureAcceptAnything"; }
+    ];
+    transports = {
+      "docker-daemon" = {
+        "" = [ { type = "insecureAcceptAnything"; } ];
+      };
+    };
+  };
 
 }

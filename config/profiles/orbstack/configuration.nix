@@ -15,11 +15,6 @@
     ./orbstack.nix
   ];
 
-  nix.settings.experimental-features = [
-    "nix-command"
-    "flakes"
-  ];
-
   users.users.qt1 = {
     uid = 501;
     extraGroups = [

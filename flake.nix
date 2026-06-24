@@ -5,17 +5,19 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     nixos-wsl.url = "github:nix-community/NixOS-WSL";
     determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/*";
-
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    flake-utils.url = "github:numtide/flake-utils";
+    zen-browser.url = "github:0xc000022070/zen-browser-flake";
   };
 
   outputs =
     inputs@{
       nixpkgs,
       home-manager,
+      flake-utils,
       ...
     }:
     let
@@ -23,35 +25,15 @@
       username = "qt1";
       stateVersion = "25.11";
 
-      hosts = {
-        orbstack = {
-          system = "aarch64-linux";
-          profile = "orbstack";
-          homeDirectory = "/home/${username}";
-          kind = "nixos";
-        };
+      profilesDir = ./config/profiles;
 
-        infra-t0 = {
-          system = "x86_64-linux";
-          profile = "infra-t0";
+      hosts = lib.mapAttrs (
+        name: _:
+        (import "${profilesDir}/${name}/host.nix") // {
+          profile = name;
           homeDirectory = "/home/${username}";
-          kind = "nixos";
-        };
-
-        infra-t1 = {
-          system = "x86_64-linux";
-          profile = "infra-t1";
-          homeDirectory = "/home/${username}";
-          kind = "nixos";
-        };
-
-        wsl = {
-          system = "x86_64-linux";
-          profile = "wsl";
-          homeDirectory = "/home/${username}";
-          kind = "nixos";
-        };
-      };
+        }
+      ) (lib.filterAttrs (_: type: type == "directory") (builtins.readDir profilesDir));
 
       mkHmModule = host: {
         imports = [
@@ -87,6 +69,7 @@
 
           modules = [
             inputs.determinate.nixosModules.default
+            ./config/modules/nix-settings.nix
             ./config/profiles/${host.profile}/configuration.nix
             home-manager.nixosModules.home-manager
             {
@@ -106,8 +89,13 @@
       homeHosts = lib.filterAttrs (_: host: host.kind == "home") hosts;
 
       allNixosHosts = lib.filterAttrs (_: host: host.kind == "nixos") hosts;
+
+      systems = [ "aarch64-linux" "x86_64-linux" ];
     in
-    {
+    flake-utils.lib.eachSystem systems (system: {
+      formatter = nixpkgs.legacyPackages.${system}.nixfmt-rfc-style;
+    })
+    // {
       homeConfigurations = lib.mapAttrs mkHome homeHosts;
       nixosConfigurations = lib.mapAttrs mkNixos allNixosHosts;
     };
