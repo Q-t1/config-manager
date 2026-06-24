@@ -25,35 +25,15 @@
       username = "qt1";
       stateVersion = "25.11";
 
-      hosts = {
-        orbstack = {
-          system = "aarch64-linux";
-          profile = "orbstack";
-          homeDirectory = "/home/${username}";
-          kind = "nixos";
-        };
+      profilesDir = ./config/profiles;
 
-        infra-t0 = {
-          system = "x86_64-linux";
-          profile = "infra-t0";
+      hosts = lib.mapAttrs (
+        name: _:
+        (import "${profilesDir}/${name}/host.nix") // {
+          profile = name;
           homeDirectory = "/home/${username}";
-          kind = "nixos";
-        };
-
-        infra-t1 = {
-          system = "x86_64-linux";
-          profile = "infra-t1";
-          homeDirectory = "/home/${username}";
-          kind = "nixos";
-        };
-
-        wsl = {
-          system = "x86_64-linux";
-          profile = "wsl";
-          homeDirectory = "/home/${username}";
-          kind = "nixos";
-        };
-      };
+        }
+      ) (lib.filterAttrs (_: type: type == "directory") (builtins.readDir profilesDir));
 
       mkHmModule = host: {
         imports = [
