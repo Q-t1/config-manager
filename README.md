@@ -3,22 +3,19 @@
 # For NixOS (+ Home-Manager) profiles
 
 ~~~
-sudo nixos-rebuild switch --flake .#infra-t0
+sudo nixos-rebuild switch --flake .#<profile>
 ~~~
 
-# For Home-Manager only profiles
+Example:
 
 ~~~
-hm_profile=orbstack
-nix run .#homeConfigurations.${hm_profile}.activationPackage \
-  --extra-experimental-features nix-command \
-  --extra-experimental-features flakes
+sudo nixos-rebuild switch --flake .#wsl
 ~~~
 
 # Build flake (Useful for CI)
 
 ~~~
-nix build --print-out-paths '€#nixosConfigurations.infra-t0.config.system.build.toplevel' \
+nix build --print-out-paths '.#nixosConfigurations.infra-t0.config.system.build.toplevel' \
   --no-link \
   --extra-experimental-features nix-command \
   --extra-experimental-features flakes
@@ -26,9 +23,9 @@ nix build --print-out-paths '€#nixosConfigurations.infra-t0.config.system.buil
 
 # Profile matrix
 
-| Host     | System        | Profile  | Home Directory | Kind  |
-|----------|---------------|----------|----------------|-------|
-| orbstack | aarch64-linux | orbstack | /home/qt1      | home  |
-| infra-t0 | x86_64-linux  | infra-t0 | /home/qt1      | nixos |
-| infra-t1 | x86_64-linux  | infra-t1 | /home/qt1      | nixos |
-| wsl      | x86_64-linux  | wsl      | /home/qt1      | nixos |
+| Host     | System        | Kind  | Home Directory |
+|----------|---------------|-------|----------------|
+| orbstack | aarch64-linux | nixos | /home/qt1      |
+| infra-t0 | x86_64-linux  | nixos | /home/qt1      |
+| infra-t1 | x86_64-linux  | nixos | /home/qt1      |
+| wsl      | x86_64-linux  | nixos | /home/qt1      |
