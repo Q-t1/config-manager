@@ -6,10 +6,7 @@
     defaultUser = "qt1";
   };
 
-  nix.settings.experimental-features = [
-    "nix-command"
-    "flakes"
-  ];
+  nixpkgs.config.allowUnfree = true;
 
   boot.kernelModules = [ "kvm-intel" ];
 
@@ -45,6 +42,18 @@
     kubernetes-helm
     openssl
     fluxcd
+    claude-code
   ];
+
+  environment.etc."containers/policy.json".text = builtins.toJSON {
+    default = [
+      { type = "insecureAcceptAnything"; }
+    ];
+    transports = {
+      "docker-daemon" = {
+        "" = [ { type = "insecureAcceptAnything"; } ];
+      };
+    };
+  };
 
 }

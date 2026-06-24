@@ -5,7 +5,6 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     nixos-wsl.url = "github:nix-community/NixOS-WSL";
     determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/*";
-
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -87,6 +86,7 @@
 
           modules = [
             inputs.determinate.nixosModules.default
+            ./config/modules/nix-settings.nix
             ./config/profiles/${host.profile}/configuration.nix
             home-manager.nixosModules.home-manager
             {

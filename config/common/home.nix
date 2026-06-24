@@ -1,11 +1,6 @@
-{ pkgs, profile, ... }:
+{ pkgs, ... }:
 
 {
-
-  imports = [
-    ../profiles/${profile}/home.nix
-  ];
-
   programs.nh.enable = true;
 
   programs.home-manager.enable = true;
@@ -16,6 +11,8 @@
 
     curl
     wget
+
+    ghostty.terminfo
   ];
 
   programs.zsh = {
@@ -49,5 +46,10 @@
 
     vimAlias = true;
     viAlias = true;
+  };
+
+  programs.zed-editor.installRemoteServer = {
+    enable = true;
+    extensions = [ "nix" ];
   };
 }
