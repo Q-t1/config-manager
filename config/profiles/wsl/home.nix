@@ -21,7 +21,7 @@
     profiles.default.settings."security.enterprise_roots.enabled" = true;
   };
 
-  programs.zsh.shellAliases.zen = "zen-beta";
+  programs.zsh.shellAliases.zen = "zen-beta &>/dev/null & disown";
 
   programs.zellij.enable = true;
 }
