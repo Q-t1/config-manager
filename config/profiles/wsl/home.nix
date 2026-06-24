@@ -18,7 +18,14 @@
 
   programs.zen-browser = {
     enable = true;
-    profiles.default.settings."security.enterprise_roots.enabled" = true;
+    policies.Certificates.Install = [ "${./certs/bleu-rootca.pem}" ];
+    profiles.default = {
+      settings."security.enterprise_roots.enabled" = true;
+      search = {
+        default = "google";
+        force = true;
+      };
+    };
   };
 
   programs.zsh.shellAliases.zen = "zen-beta &>/dev/null & disown";
