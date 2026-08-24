@@ -12,7 +12,16 @@
 
   virtualisation.docker = {
     enable = true;
+    # Daemon is socket-activated instead of started at boot.
+    enableOnBoot = false;
   };
+
+  # WSLg publishes its Wayland socket outside XDG_RUNTIME_DIR; link it in so
+  # WAYLAND_DISPLAY=wayland-0 resolves. %t expands to /run/user/$UID.
+  systemd.user.tmpfiles.rules = [
+    "L+ %t/wayland-0      - - - - /mnt/wslg/runtime-dir/wayland-0"
+    "L+ %t/wayland-0.lock - - - - /mnt/wslg/runtime-dir/wayland-0.lock"
+  ];
 
   security.pki.certificateFiles = [
     ./certs/bleu-rootca.pem
