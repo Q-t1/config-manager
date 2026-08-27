@@ -5,7 +5,12 @@
 # there is no runtime plugin manager (no lazy.nvim, no Mason). All language
 # servers, formatters and linters are provided from nixpkgs on Neovim's PATH,
 # which is the only thing that works reliably on NixOS.
-{ inputs, pkgs, lib, ... }:
+{
+  inputs,
+  pkgs,
+  lib,
+  ...
+}:
 
 {
   imports = [ inputs.nixvim.homeModules.nixvim ];
@@ -31,11 +36,20 @@
     globals = {
       mapleader = " ";
       maplocalleader = " ";
+
+      # vim-visual-multi: bind VSCode's Ctrl-d ("select next occurrence") and
+      # Ctrl-shift-l ("select all occurrences") to the multi-cursor engine.
+      VM_maps = {
+        "Find Under" = "<C-d>";
+        "Find Subword Under" = "<C-d>";
+        "Select All" = "<C-S-l>";
+      };
+      VM_show_warnings = 0;
     };
 
     opts = {
       number = true;
-      relativenumber = true;
+      relativenumber = false; # VSCode shows absolute line numbers
 
       # Full mouse support: resize/scroll/select/click across every mode.
       # Windows Terminal already passes mouse events through by default.
@@ -47,6 +61,7 @@
       softtabstop = 2;
       smartindent = true;
 
+      background = "dark";
       termguicolors = true;
       signcolumn = "yes";
       cursorline = true;
@@ -64,23 +79,60 @@
       timeoutlen = 300;
     };
 
-    colorschemes.tokyonight = {
+    # VSCode Dark+ theme (Mofiqul/vscode.nvim).
+    colorschemes.vscode = {
       enable = true;
-      settings.style = "night";
+      settings.italic_comments = true;
     };
 
     plugins = {
       # ---- UI / look & feel -------------------------------------------------
       web-devicons.enable = true; # needs a Nerd Font in the terminal
-      lualine.enable = true;
-      bufferline.enable = true;
       which-key.enable = true;
       indent-blankline.enable = true;
       todo-comments.enable = true;
       fidget.enable = true; # LSP progress spinner
+      barbecue.enable = true; # VSCode-style breadcrumb bar (winbar)
+      navic.enable = true; # symbol context feeding the breadcrumbs
+      notify.enable = true; # VSCode-style toast notifications
+      rainbow-delimiters.enable = true; # bracket-pair colorization
+
+      lualine = {
+        enable = true;
+        settings.options.theme = "auto"; # follow the vscode colorscheme
+      };
+
+      # Editor tabs styled like VSCode: per-tab LSP diagnostics + an EXPLORER
+      # gutter so the tab bar lines up beside the neo-tree sidebar.
+      bufferline = {
+        enable = true;
+        settings.options = {
+          diagnostics = "nvim_lsp";
+          offsets = [
+            {
+              filetype = "neo-tree";
+              text = "EXPLORER";
+              separator = true;
+              text_align = "left";
+            }
+          ];
+        };
+      };
 
       # ---- Navigation -------------------------------------------------------
-      neo-tree.enable = true; # file explorer (IntelliJ's project tree)
+      # VSCode-style file explorer / project tree; hijack netrw so `nvim .`
+      # (the `coding` alias) opens straight into the tree.
+      neo-tree = {
+        enable = true;
+        settings = {
+          close_if_last_window = true;
+          filesystem = {
+            hijack_netrw_behavior = "open_current";
+            follow_current_file.enabled = true;
+            use_libuv_file_watcher = true;
+          };
+        };
+      };
       telescope = {
         enable = true;
         extensions.fzf-native.enable = true;
@@ -99,6 +151,15 @@
       nvim-autopairs.enable = true;
       nvim-surround.enable = true;
       comment.enable = true;
+
+      # Integrated terminal panel at the bottom (VSCode's Ctrl-` panel).
+      toggleterm = {
+        enable = true;
+        settings = {
+          direction = "horizontal";
+          size = 14;
+        };
+      };
 
       # ---- Git --------------------------------------------------------------
       gitsigns.enable = true;
@@ -215,7 +276,10 @@
     # server does not choke on Go templating, and helm-ls (wired below) provides
     # completion/hover for chart values. nixvim has no dedicated helm_ls option,
     # so register it directly against lspconfig.
-    extraPlugins = [ pkgs.vimPlugins.vim-helm ];
+    extraPlugins = with pkgs.vimPlugins; [
+      vim-helm
+      vim-visual-multi # VSCode-style multi-cursor (Ctrl-d)
+    ];
 
     extraConfigLua = ''
       require("lspconfig").helm_ls.setup({
@@ -240,19 +304,221 @@
       kustomize
     ];
 
-    # Convenience keymaps that mirror the LazyVim defaults.
+    # VSCode-style keybindings.
+    #
+    # Terminal caveat: Windows Terminal cannot deliver most Ctrl-Shift-<key>
+    # chords to a WSL app (no kitty keyboard protocol), so those are marked
+    # "best effort" and each has a reliable F-key or <leader> equivalent.
     keymaps = [
+      # -- Command palette / quick open --------------------------------------
+      {
+        mode = "n";
+        key = "<F1>";
+        action = "<cmd>Telescope commands<cr>";
+        options.desc = "Command palette";
+      }
+      {
+        mode = "n";
+        key = "<C-p>";
+        action = "<cmd>Telescope find_files<cr>";
+        options.desc = "Quick open (files)";
+      }
+      {
+        mode = "n";
+        key = "<C-S-p>"; # best effort
+        action = "<cmd>Telescope commands<cr>";
+        options.desc = "Command palette";
+      }
+      {
+        mode = "n";
+        key = "<C-S-f>"; # best effort; also <leader>fg
+        action = "<cmd>Telescope live_grep<cr>";
+        options.desc = "Search in files";
+      }
+      {
+        mode = "n";
+        key = "<C-b>";
+        action = "<cmd>Neotree toggle<cr>";
+        options.desc = "Toggle sidebar";
+      }
       {
         mode = "n";
         key = "<leader>e";
         action = "<cmd>Neotree toggle<cr>";
         options.desc = "Explorer (neo-tree)";
       }
+
+      # -- Save / select / clipboard -----------------------------------------
+      {
+        mode = [
+          "n"
+          "i"
+          "v"
+        ];
+        key = "<C-s>";
+        action = "<Cmd>w<CR>"; # <Cmd> keeps insert/visual mode
+        options.desc = "Save file";
+      }
       {
         mode = "n";
-        key = "<leader>xx";
-        action = "<cmd>Trouble diagnostics toggle<cr>";
-        options.desc = "Diagnostics (Trouble)";
+        key = "<C-a>";
+        action = "ggVG";
+        options.desc = "Select all";
+      }
+      {
+        mode = "v";
+        key = "<C-c>";
+        action = "\"+y";
+        options.desc = "Copy to system clipboard";
+      }
+      {
+        mode = "v";
+        key = "<C-x>";
+        action = "\"+d";
+        options.desc = "Cut to system clipboard";
+      }
+      {
+        mode = [
+          "i"
+          "c"
+        ];
+        key = "<C-v>";
+        action = "<C-r>+"; # normal-mode <C-v> stays visual-block
+        options.desc = "Paste from system clipboard";
+      }
+
+      # -- Comment toggle (Ctrl-/) -------------------------------------------
+      {
+        mode = "n";
+        key = "<C-/>";
+        action = "<cmd>lua require('Comment.api').toggle.linewise.current()<cr>";
+        options.desc = "Toggle comment";
+      }
+      {
+        mode = "n";
+        key = "<C-_>"; # some terminals send Ctrl-/ as Ctrl-_
+        action = "<cmd>lua require('Comment.api').toggle.linewise.current()<cr>";
+        options.desc = "Toggle comment";
+      }
+      {
+        mode = "v";
+        key = "<C-/>";
+        action = "<Plug>(comment_toggle_linewise_visual)";
+        options = {
+          remap = true;
+          desc = "Toggle comment";
+        };
+      }
+      {
+        mode = "v";
+        key = "<C-_>";
+        action = "<Plug>(comment_toggle_linewise_visual)";
+        options = {
+          remap = true;
+          desc = "Toggle comment";
+        };
+      }
+
+      # -- Move / duplicate lines (Alt-Up/Down) ------------------------------
+      {
+        mode = "n";
+        key = "<A-Down>";
+        action = "<cmd>m .+1<cr>==";
+        options.desc = "Move line down";
+      }
+      {
+        mode = "n";
+        key = "<A-Up>";
+        action = "<cmd>m .-2<cr>==";
+        options.desc = "Move line up";
+      }
+      {
+        mode = "i";
+        key = "<A-Down>";
+        action = "<esc><cmd>m .+1<cr>==gi";
+        options.desc = "Move line down";
+      }
+      {
+        mode = "i";
+        key = "<A-Up>";
+        action = "<esc><cmd>m .-2<cr>==gi";
+        options.desc = "Move line up";
+      }
+      {
+        mode = "v";
+        key = "<A-Down>";
+        action = ":m '>+1<cr>gv=gv";
+        options.desc = "Move selection down";
+      }
+      {
+        mode = "v";
+        key = "<A-Up>";
+        action = ":m '<-2<cr>gv=gv";
+        options.desc = "Move selection up";
+      }
+      {
+        mode = "n";
+        key = "<A-S-Down>"; # best effort
+        action = "<cmd>t.<cr>";
+        options.desc = "Duplicate line down";
+      }
+
+      # -- Code navigation (F-keys mirror VSCode) ----------------------------
+      {
+        mode = "n";
+        key = "<F2>";
+        action = "<cmd>lua vim.lsp.buf.rename()<cr>";
+        options.desc = "Rename symbol";
+      }
+      {
+        mode = "n";
+        key = "<F12>";
+        action = "<cmd>lua vim.lsp.buf.definition()<cr>";
+        options.desc = "Go to definition";
+      }
+      {
+        mode = "n";
+        key = "<S-F12>";
+        action = "<cmd>Telescope lsp_references<cr>";
+        options.desc = "Find references";
+      }
+      {
+        mode = "n";
+        key = "<C-.>"; # best effort; also <leader>ca
+        action = "<cmd>lua vim.lsp.buf.code_action()<cr>";
+        options.desc = "Quick fix / code action";
+      }
+      {
+        mode = "n";
+        key = "<F8>";
+        action = "<cmd>lua vim.diagnostic.jump({ count = 1, float = true })<cr>";
+        options.desc = "Next problem";
+      }
+      {
+        mode = "n";
+        key = "<S-F8>";
+        action = "<cmd>lua vim.diagnostic.jump({ count = -1, float = true })<cr>";
+        options.desc = "Previous problem";
+      }
+      {
+        mode = "n";
+        key = "<A-Left>";
+        action = "<C-o>";
+        options.desc = "Navigate back";
+      }
+      {
+        mode = "n";
+        key = "<A-Right>";
+        action = "<C-i>";
+        options.desc = "Navigate forward";
+      }
+
+      # -- Format ------------------------------------------------------------
+      {
+        mode = "n";
+        key = "<A-S-f>"; # best effort; also <leader>cf
+        action.__raw = ''function() require("conform").format({ async = true, lsp_format = "fallback" }) end'';
+        options.desc = "Format document";
       }
       {
         mode = "n";
@@ -260,6 +526,28 @@
         action.__raw = ''function() require("conform").format({ async = true, lsp_format = "fallback" }) end'';
         options.desc = "Format buffer";
       }
+
+      # -- Panels ------------------------------------------------------------
+      {
+        mode = "n";
+        key = "<leader>t";
+        action = "<cmd>ToggleTerm<cr>";
+        options.desc = "Toggle terminal";
+      }
+      {
+        mode = "t";
+        key = "<Esc>";
+        action = "<C-\\><C-n>";
+        options.desc = "Terminal: exit to normal mode";
+      }
+      {
+        mode = "n";
+        key = "<leader>xx";
+        action = "<cmd>Trouble diagnostics toggle<cr>";
+        options.desc = "Problems (Trouble)";
+      }
+
+      # -- Buffers / tabs ----------------------------------------------------
       {
         mode = "n";
         key = "<S-h>";
@@ -274,9 +562,15 @@
       }
       {
         mode = "n";
+        key = "<C-Tab>"; # best effort
+        action = "<cmd>bnext<cr>";
+        options.desc = "Next buffer";
+      }
+      {
+        mode = "n";
         key = "<leader>bd";
         action = "<cmd>bdelete<cr>";
-        options.desc = "Delete buffer";
+        options.desc = "Close buffer";
       }
       {
         mode = "n";

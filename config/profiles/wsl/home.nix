@@ -54,5 +54,11 @@
   # Open the current directory as a project in the Neovim IDE.
   programs.zsh.shellAliases.coding = "nvim .";
 
+  # Free Ctrl-S / Ctrl-Q from XON/XOFF flow control so the save keybind never
+  # freezes an interactive terminal.
+  programs.zsh.initContent = ''
+    [[ $- == *i* ]] && stty -ixon 2>/dev/null
+  '';
+
   programs.zellij.enable = true;
 }
