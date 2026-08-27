@@ -45,6 +45,11 @@
         "Select All" = "<C-S-l>";
       };
       VM_show_warnings = 0;
+
+      # neo-tree owns the file tree; disable netrw so `nvim <dir>` doesn't race
+      # it (on 0.12 `gx` uses vim.ui.open, not netrw, so nothing is lost).
+      loaded_netrw = 1;
+      loaded_netrwPlugin = 1;
     };
 
     opts = {
@@ -126,8 +131,12 @@
         enable = true;
         settings = {
           close_if_last_window = true;
+          window = {
+            position = "left";
+            width = 34;
+          };
           filesystem = {
-            hijack_netrw_behavior = "open_current";
+            hijack_netrw_behavior = "disabled";
             follow_current_file.enabled = true;
             use_libuv_file_watcher = true;
           };
@@ -296,6 +305,24 @@
         },
       })
       vim.lsp.enable("helm_ls")
+
+      -- VSCode-style: dock the file tree on the left at startup. Fires for a
+      -- bare `nvim` or `nvim <dir>` (the `coding` alias) but stays out of the
+      -- way when Neovim is the $EDITOR for a single file (git commit, kubectl
+      -- edit, ...), which opens with a file argument instead.
+      vim.api.nvim_create_autocmd("VimEnter", {
+        desc = "Open neo-tree as a left sidebar on launch",
+        callback = function()
+          local argc = vim.fn.argc()
+          local opened_dir = argc == 1 and vim.fn.isdirectory(vim.fn.argv(0)) == 1
+          if argc == 0 or opened_dir then
+            if opened_dir then
+              vim.cmd("enew") -- blank editor in the main window
+            end
+            vim.cmd("Neotree show left") -- show without stealing focus
+          end
+        end,
+      })
     '';
 
     # Formatters / linters / kube tooling that must be on Neovim's PATH.
