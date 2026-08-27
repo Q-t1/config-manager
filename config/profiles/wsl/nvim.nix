@@ -274,21 +274,28 @@
 
     # Helm charts: towolf/vim-helm sets filetype=helm for templates so the YAML
     # server does not choke on Go templating, and helm-ls (wired below) provides
-    # completion/hover for chart values. nixvim has no dedicated helm_ls option,
-    # so register it directly against lspconfig.
+    # completion/hover for chart values.
     extraPlugins = with pkgs.vimPlugins; [
       vim-helm
       vim-visual-multi # VSCode-style multi-cursor (Ctrl-d)
     ];
 
+    # nixvim has no helm_ls option, so register it with Neovim's built-in LSP
+    # API. The older `require('lspconfig').helm_ls.setup()` framework is
+    # deprecated on 0.11+; its warning would otherwise pop up as a startup
+    # toast now that nvim-notify intercepts vim.notify.
     extraConfigLua = ''
-      require("lspconfig").helm_ls.setup({
+      vim.lsp.config("helm_ls", {
+        cmd = { "helm_ls", "serve" },
+        filetypes = { "helm" },
+        root_markers = { "Chart.yaml" },
         settings = {
           ["helm-ls"] = {
             yamlls = { path = "yaml-language-server" },
           },
         },
       })
+      vim.lsp.enable("helm_ls")
     '';
 
     # Formatters / linters / kube tooling that must be on Neovim's PATH.
