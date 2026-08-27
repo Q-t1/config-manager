@@ -1,12 +1,16 @@
 { pkgs, lib, config, ... }:
 
 {
+  imports = [ ./nvim.nix ];
+
   home.packages = with pkgs; [
     skopeo
     jq
     yq
     kubectl
     kubernetes-helm
+    kustomize
+    kubeconform
     openssl
     fluxcd
     claude-code
@@ -46,6 +50,9 @@
   '';
 
   programs.zsh.shellAliases.ff = "MOZ_ENABLE_WAYLAND=1 firefox &>/dev/null & disown";
+
+  # Open the current directory as a project in the Neovim IDE.
+  programs.zsh.shellAliases.coding = "nvim .";
 
   programs.zellij.enable = true;
 }
