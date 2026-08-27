@@ -97,7 +97,7 @@
       systems = [ "aarch64-linux" "x86_64-linux" ];
     in
     flake-utils.lib.eachSystem systems (system: {
-      formatter = nixpkgs.legacyPackages.${system}.nixfmt-rfc-style;
+      formatter = nixpkgs.legacyPackages.${system}.nixfmt;
     })
     // {
       homeConfigurations = lib.mapAttrs mkHome homeHosts;

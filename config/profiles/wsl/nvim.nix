@@ -12,6 +12,21 @@
   ...
 }:
 
+let
+  # vscode-langservers-extracted 4.10.0 ships a broken JSON server bundle: it
+  # mixes CommonJS `require()` with a lone `import.meta.url`, so Node 24 can run
+  # it as neither (as ESM `require` is undefined; as CJS `import.meta` is a
+  # syntax error) and jsonls crashes at startup. Pin the bundle to CommonJS and
+  # rewrite that one ESM-ism to its CJS equivalent.
+  jsonlsFixed = pkgs.vscode-langservers-extracted.overrideAttrs (old: {
+    postInstall = (old.postInstall or "") + ''
+      srv="$out/lib/node_modules/vscode-langservers-extracted/lib/json-language-server/node"
+      echo '{ "type": "commonjs" }' > "$srv/package.json"
+      substituteInPlace "$srv/jsonServerMain.js" \
+        --replace-fail 'import.meta.url' "require('url').pathToFileURL(__filename).href"
+    '';
+  });
+in
 {
   imports = [ inputs.nixvim.homeModules.nixvim ];
 
@@ -25,6 +40,11 @@
     defaultEditor = true;
     viAlias = true;
     vimAlias = true;
+
+    # Nixvim builds its plugins from this nixpkgs. Pin it explicitly to our
+    # (followed) nixpkgs so nixvim stops warning that the input `follows`
+    # diverges from its own tested pin.
+    nixpkgs.source = inputs.nixpkgs;
 
     # WSLg exposes a Wayland display, so wl-copy/wl-paste bridge Neovim's yank
     # register straight to the Windows clipboard (mouse-select included).
@@ -224,8 +244,12 @@
             };
           };
 
-          # JSON / JSONC (with SchemaStore catalog)
-          jsonls.enable = true;
+          # JSON / JSONC (with SchemaStore catalog). The stock server package
+          # crashes under Node, so use the patched build (see jsonlsFixed).
+          jsonls = {
+            enable = true;
+            package = jsonlsFixed;
+          };
 
           # Lua (for editing this very config)
           lua_ls.enable = true;
@@ -287,6 +311,7 @@
     extraPlugins = with pkgs.vimPlugins; [
       vim-helm
       vim-visual-multi # VSCode-style multi-cursor (Ctrl-d)
+      claudecode-nvim # Claude Code IDE integration (like the VSCode extension)
     ];
 
     # nixvim has no helm_ls option, so register it with Neovim's built-in LSP
@@ -306,10 +331,24 @@
       })
       vim.lsp.enable("helm_ls")
 
-      -- VSCode-style: dock the file tree on the left at startup. Fires for a
-      -- bare `nvim` or `nvim <dir>` (the `coding` alias) but stays out of the
-      -- way when Neovim is the $EDITOR for a single file (git commit, kubectl
-      -- edit, ...), which opens with a file argument instead.
+      -- Claude Code integration — mirrors the VSCode/JetBrains extension:
+      -- shared selection, in-editor diffs, and a `claude` terminal. auto_start
+      -- is off so the WebSocket bridge only comes up when you open Claude.
+      require("claudecode").setup({
+        auto_start = false,
+        terminal = {
+          provider = "native",
+          split_side = "right",
+          split_width_percentage = 0.35,
+        },
+      })
+
+      -- VSCode-style: auto-open the file tree as a left sidebar on launch, for
+      -- a bare `nvim` or `nvim <dir>` (the `coding` launcher) — i.e. whenever
+      -- you open the IDE on a project. Single-file launches are left alone so
+      -- the tree never fights the $EDITOR use cases (git commit, kubectl edit),
+      -- and because summoning neo-tree onto an already-loaded file buffer at
+      -- startup makes it render as a floating popup; open it there with Ctrl-b.
       vim.api.nvim_create_autocmd("VimEnter", {
         desc = "Open neo-tree as a left sidebar on launch",
         callback = function()
@@ -328,7 +367,7 @@
     # Formatters / linters / kube tooling that must be on Neovim's PATH.
     # (LSP server binaries are added automatically by the server options above.)
     extraPackages = with pkgs; [
-      nixfmt-rfc-style
+      nixfmt
       prettierd
       stylua
       shfmt
@@ -336,6 +375,7 @@
       helm-ls
       kubeconform
       kustomize
+      claude-code # `claude` CLI used by the claudecode.nvim integration
     ];
 
     # VSCode-style keybindings.
@@ -356,6 +396,26 @@
         key = "<C-p>";
         action = "<cmd>Telescope find_files<cr>";
         options.desc = "Quick open (files)";
+      }
+
+      # -- Claude Code -------------------------------------------------------
+      {
+        mode = "n";
+        key = "<leader>ac";
+        action = "<cmd>ClaudeCode<cr>";
+        options.desc = "Claude Code (toggle)";
+      }
+      {
+        mode = "n";
+        key = "<leader>af";
+        action = "<cmd>ClaudeCodeFocus<cr>";
+        options.desc = "Claude Code (focus)";
+      }
+      {
+        mode = "v";
+        key = "<leader>as";
+        action = "<cmd>ClaudeCodeSend<cr>";
+        options.desc = "Send selection to Claude";
       }
       {
         mode = "n";
