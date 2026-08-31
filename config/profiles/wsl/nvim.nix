@@ -224,6 +224,32 @@ in
       };
       treesitter-context.enable = true;
 
+      # ---- Markdown reading -------------------------------------------------
+      # render-markdown.nvim turns a raw `.md` buffer into a formatted document
+      # in place — headings get icons/backgrounds, fenced code blocks a filled
+      # box with the language name, tables are aligned, bullets/checkboxes/
+      # callouts are drawn. It follows catppuccin automatically and drives the
+      # `markdown` + `markdown_inline` treesitter parsers (installed with the
+      # grammar set above) plus web-devicons (enabled above), so nothing extra
+      # is needed. anti_conceal shows the raw source only on the cursor's line,
+      # so the file stays fully editable while everything else reads rendered.
+      # Toggle raw/rendered on <leader>cm (see keymaps).
+      render-markdown = {
+        enable = true;
+        settings = {
+          anti_conceal.enabled = true;
+          code = {
+            style = "full"; # background box + language label on fenced blocks
+            width = "block";
+            left_pad = 2;
+            right_pad = 2;
+          };
+          # These are Nix/k8s config docs, not math — skip LaTeX rendering so it
+          # never warns about a missing `latex` parser / pylatexenc at :checkhealth.
+          latex.enabled = false;
+        };
+      };
+
       # ---- Diagnostics ------------------------------------------------------
       trouble.enable = true;
 
@@ -971,6 +997,17 @@ in
         key = "<leader>cf";
         action.__raw = ''function() require("conform").format({ async = true, lsp_format = "fallback" }) end'';
         options.desc = "Format buffer";
+      }
+
+      # -- Markdown ----------------------------------------------------------
+      # Flip the current buffer between the rendered document and the raw
+      # markdown source (render-markdown.nvim). Handy when editing tables/links
+      # where seeing the literal syntax is easier than the rendered form.
+      {
+        mode = "n";
+        key = "<leader>cm";
+        action = "<cmd>RenderMarkdown toggle<cr>";
+        options.desc = "Toggle markdown render";
       }
 
       # -- Panels ------------------------------------------------------------
