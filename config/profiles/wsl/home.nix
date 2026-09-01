@@ -151,7 +151,7 @@ in
         }
     }
     KDL
-        ( builtin cd -- "$dir" && zellij --layout "$tmp_layout" )
+        ( builtin cd -- "$dir" && zellij --session "coding-''${dir:t}" --layout "$tmp_layout" )
         rm -f "$tmp_layout"
       fi
     }
