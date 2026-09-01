@@ -8,6 +8,7 @@
     nil
     nixd
     package-version-server
+    cachix
 
     curl
     wget
