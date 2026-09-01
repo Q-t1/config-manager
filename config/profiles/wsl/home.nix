@@ -128,10 +128,31 @@ in
         return
       fi
       local dir="''${target:A}" # zsh: resolve to an absolute path
+      local tab_name="coding: ''${dir:t}"
       if [[ -n "$ZELLIJ" ]]; then
-        zellij action new-tab --layout coding --cwd "$dir"
+        zellij action new-tab --layout coding --cwd "$dir" --name "$tab_name"
       else
-        ( builtin cd -- "$dir" && exec zellij --layout coding )
+        local tmp_layout
+        tmp_layout=$(mktemp --suffix=.kdl)
+        cat > "$tmp_layout" <<KDL
+    layout {
+        tab name="$tab_name" focus=true {
+            pane split_direction="vertical" {
+                pane size="24%" name="files" focus=true {
+                    command "${codingYazi}"
+                }
+                pane split_direction="horizontal" {
+                    pane size="80%" name="editor" {
+                        command "${codingNvim}"
+                    }
+                    pane size="20%" name="terminal"
+                }
+            }
+        }
+    }
+    KDL
+        ( builtin cd -- "$dir" && zellij --layout "$tmp_layout" )
+        rm -f "$tmp_layout"
       fi
     }
   '';
