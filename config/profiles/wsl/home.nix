@@ -136,27 +136,7 @@ in
         if zellij list-sessions 2>/dev/null | grep -qF "$session_name"; then
           ( builtin cd -- "$dir" && zellij attach "$session_name" )
         else
-          local tmp_layout
-          tmp_layout=$(mktemp --suffix=.kdl)
-          cat > "$tmp_layout" <<KDL
-    layout {
-        tab name="$tab_name" focus=true {
-            pane split_direction="vertical" {
-                pane size="24%" name="files" focus=true {
-                    command "${codingYazi}"
-                }
-                pane split_direction="horizontal" {
-                    pane size="80%" name="editor" {
-                        command "${codingNvim}"
-                    }
-                    pane size="20%" name="terminal"
-                }
-            }
-        }
-    }
-    KDL
-          ( builtin cd -- "$dir" && zellij -n "$tmp_layout" -s "$session_name" )
-          rm -f "$tmp_layout"
+          ( builtin cd -- "$dir" && zellij -n coding -s "$session_name" )
         fi
       fi
     }
