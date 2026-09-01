@@ -136,30 +136,15 @@ in
         if zellij list-sessions 2>/dev/null | grep -qF "$session_name"; then
           ( builtin cd -- "$dir" && zellij attach "$session_name" )
         else
-          local tmp_layout
-          tmp_layout=$(mktemp --suffix=.kdl)
-          cat > "$tmp_layout" <<KDL
-    layout {
-        session {
-            name "$session_name"
-        }
-        tab name="$tab_name" focus=true {
-            pane split_direction="vertical" {
-                pane size="24%" name="files" focus=true {
-                    command "${codingYazi}"
-                }
-                pane split_direction="horizontal" {
-                    pane size="80%" name="editor" {
-                        command "${codingNvim}"
-                    }
-                    pane size="20%" name="terminal"
-                }
-            }
-        }
-    }
-    KDL
-          ( builtin cd -- "$dir" && zellij --layout "$tmp_layout" )
-          rm -f "$tmp_layout"
+          # Name the new session (-s, so the Windows Terminal tab is readable)
+          # and load the predefined `coding` layout as a fresh session.
+          # Use -n/--new-session-with-layout, NOT --layout: with -s present,
+          # `--layout coding` means "add a tab to session coding-<dir>", which
+          # doesn't exist yet, so zellij errors "Session not found". -n always
+          # starts a new session, so it composes with -s. This is the single
+          # source of truth for the yazi+editor panes — same `coding` layout
+          # the in-session new-tab path (zellij action new-tab) uses.
+          ( builtin cd -- "$dir" && zellij -s "$session_name" -n coding )
         fi
       fi
     }
