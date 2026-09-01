@@ -132,9 +132,13 @@ in
       if [[ -n "$ZELLIJ" ]]; then
         zellij action new-tab --layout coding --cwd "$dir" --name "$tab_name"
       else
-        local tmp_layout
-        tmp_layout=$(mktemp --suffix=.kdl)
-        cat > "$tmp_layout" <<KDL
+        local session_name="coding-''${dir:t}"
+        if zellij list-sessions 2>/dev/null | grep -qF "$session_name"; then
+          ( builtin cd -- "$dir" && zellij attach "$session_name" )
+        else
+          local tmp_layout
+          tmp_layout=$(mktemp --suffix=.kdl)
+          cat > "$tmp_layout" <<KDL
     layout {
         tab name="$tab_name" focus=true {
             pane split_direction="vertical" {
@@ -151,8 +155,9 @@ in
         }
     }
     KDL
-        ( builtin cd -- "$dir" && zellij --session "coding-''${dir:t}" --layout "$tmp_layout" )
-        rm -f "$tmp_layout"
+          ( builtin cd -- "$dir" && zellij -n "$tmp_layout" -s "$session_name" )
+          rm -f "$tmp_layout"
+        fi
       fi
     }
   '';
