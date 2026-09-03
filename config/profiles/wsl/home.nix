@@ -24,6 +24,7 @@ let
 
   nvimBin = "${config.programs.nixvim.build.package}/bin/nvim";
   zellijBin = "${pkgs.zellij}/bin/zellij";
+  lazygitBin = "${pkgs.lazygit}/bin/lazygit";
 
   # The `coding` layout puts yazi (left) and Neovim (right) in separate zellij
   # panes, so opening a file means handing it from one pane to the other. The
@@ -73,7 +74,8 @@ in
     fluxcd
     claude-code
     fd # yazi's file finder (the `coding` left pane)
-    ripgrep # yazi's content search
+    ripgrep # yazi's content search and `fif` function
+    lazygit # full git UI; also used by the `git` zellij layout
   ];
 
   programs.git.settings.user.email = lib.mkForce "quentin.roccia@bleucloud.fr";
@@ -148,7 +150,51 @@ in
         fi
       fi
     }
-  '';
+
+  # `gitview [dir]` opens a dedicated git tab (full-screen lazygit). Inside
+  # an existing zellij session it adds a tab; outside it starts a new session.
+  gitview() {
+    local target="''${1:-.}"
+    local dir="''${target:A}"
+    local tab_name="git: ''${dir:t}"
+    if [[ -n "$ZELLIJ" ]]; then
+      zellij action new-tab --layout git --cwd "$dir" --name "$tab_name"
+    else
+      ( builtin cd -- "$dir" && zellij -n git )
+    fi
+  }
+
+  # `fif <pattern> [rg-args]` — interactive ripgrep | fzf content search with
+  # bat preview. Selecting a match opens the file at the matched line: in the
+  # current coding tab's nvim pane when its socket is reachable (same hash
+  # logic as the `coding` launcher), otherwise in a new nvim in this pane.
+  fif() {
+    if [[ $# -eq 0 ]]; then
+      print -u2 "usage: fif <pattern> [rg-args...]"; return 1
+    fi
+    local result
+    result=$(
+      rg --color=always --line-number --no-heading --smart-case -- "$@" |
+        fzf --ansi \
+            --delimiter ':' \
+            --preview 'bat --color=always --highlight-line {2} -- {1}' \
+            --preview-window 'right:60%,+{2}+3/3,border-left'
+    ) || return
+    local clean file rest line abs
+    clean=$(printf '%s' "$result" | sed 's/\x1b\[[0-9;]*[mGKHF]//g')
+    file="''${clean%%:*}"
+    rest="''${clean#*:}"
+    line="''${rest%%:*}"
+    abs=$(realpath -- "$file")
+    local sock="''${XDG_RUNTIME_DIR:-/tmp}/nvim-coding-$(printf '%s' "$PWD" | ${pkgs.coreutils}/bin/sha1sum | ${pkgs.coreutils}/bin/cut -c1-16).sock"
+    if [[ -S "$sock" ]]; then
+      ${nvimBin} --server "$sock" --remote-send ":e +''${line} ''${abs}<CR>"
+      ${zellijBin} action move-focus right 2>/dev/null
+    else
+      ${nvimBin} +"''${line}" -- "$abs"
+    fi
+  }
+'';
 
   # yazi is the IDE's file manager, running as the persistent left pane of the
   # `coding` zellij layout (below). Picking a file opens it in the Neovim pane on
@@ -222,6 +268,19 @@ in
       copy_on_select = true;
       copy_command = "clip.exe";
     };
+
+    # Full-screen lazygit tab, launched by `gitview`. Alt-t still adds a
+    # terminal below if needed; lazygit's own bottom panel handles most shell
+    # needs (press `e` to open the embedded shell in a lazygit split).
+    layouts.git = ''
+      layout {
+          tab name="git" focus=true {
+              pane name="lazygit" focus=true {
+                  command "${lazygitBin}"
+              }
+          }
+      }
+    '';
 
     # VSCode-style IDE workspace launched by the `coding` shell function:
     #
