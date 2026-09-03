@@ -136,14 +136,6 @@ in
         settings.options.theme = "auto"; # follow the active (catppuccin) colorscheme
       };
 
-      # Editor tabs styled like VSCode, with per-tab LSP diagnostics. There is no
-      # sidebar offset here: the file manager is yazi, in its own zellij pane
-      # outside Neovim rather than a panel inside it.
-      bufferline = {
-        enable = true;
-        settings.options.diagnostics = "nvim_lsp";
-      };
-
       # ---- Navigation -------------------------------------------------------
       # The file manager is yazi, running as its own persistent left zellij pane
       # (see home.nix). It opens files here over a socket, so nothing about the
@@ -380,11 +372,10 @@ in
       vim.lsp.enable("helm_ls")
 
       -- The file manager is yazi, running as its own persistent left zellij pane
-      -- (see home.nix: the `coding` layout, and the `edit` opener that sends a
-      -- picked file here via `nvim --server <sock> --remote`). Neovim just needs
-      -- to be reachable on that socket — the `coding` layout launches it with
-      -- `--listen`, so there is nothing to wire on this side. Ctrl-h (seamless
-      -- nav, below) and <C-b>/<leader>e (keymaps) move focus to that pane.
+      -- (see home.nix: the `coding` layout). Each file opened from yazi spawns a
+      -- fresh Zellij tab with its own Neovim; Zellij's tab bar is the open-file
+      -- list instead of bufferline. Ctrl-h and <C-b>/<leader>e move focus to the
+      -- yazi pane; <S-h>/<S-l> navigate Zellij tabs (open files).
 
       -- Claude Code integration — mirrors the VSCode/JetBrains extension:
       -- shared selection, in-editor diffs, and a `claude` terminal. auto_start
@@ -441,41 +432,6 @@ in
           vim.cmd("startinsert")
         end
       end, { desc = "Click to edit (enter insert mode)" })
-
-      -- VSCode-style: closing your last file leaves an empty editor instead of
-      -- quitting Neovim. Plain `:bdelete` can tear the editor window down, so
-      -- point every window showing the buffer at a replacement *first* — the
-      -- alternate file, else another open file, else a fresh scratch buffer — so
-      -- the window always survives the delete. Refuses to discard unsaved
-      -- changes, matching plain `:bd`.
-      local function close_buffer()
-        local bufnr = vim.api.nvim_get_current_buf()
-        if vim.bo[bufnr].modified then
-          vim.notify(
-            "Buffer has unsaved changes — :w to save or :bd! to discard",
-            vim.log.levels.WARN
-          )
-          return
-        end
-        local alt = vim.fn.bufnr("#")
-        local replacement
-        if alt ~= bufnr and alt ~= -1 and vim.fn.buflisted(alt) == 1 then
-          replacement = alt
-        else
-          for _, b in ipairs(vim.api.nvim_list_bufs()) do
-            if b ~= bufnr and vim.bo[b].buflisted then
-              replacement = b
-              break
-            end
-          end
-        end
-        replacement = replacement or vim.api.nvim_create_buf(true, false)
-        for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
-          vim.api.nvim_win_set_buf(win, replacement)
-        end
-        pcall(vim.api.nvim_buf_delete, bufnr, {})
-      end
-      vim.keymap.set("n", "<leader>bd", close_buffer, { desc = "Close buffer (keep editor open)" })
 
       -- WSL clipboard bridge. WSLg's Wayland socket isn't always reachable
       -- (detached shells and some multiplexer contexts return "connection
@@ -606,7 +562,7 @@ in
       -- instead of a flat key list.
       require("which-key").add({
         { "<leader>a", group = "AI / Claude" },
-        { "<leader>b", group = "Buffer" },
+        { "<leader>b", group = "File" },
         { "<leader>c", group = "Code" },
         { "<leader>f", group = "Find" },
         { "<leader>g", group = "Git" },
@@ -1046,27 +1002,32 @@ in
         options.desc = "Problems (Trouble)";
       }
 
-      # -- Buffers / tabs ----------------------------------------------------
+      # -- File tabs (Zellij) -----------------------------------------------
+      # Each open file lives in its own Zellij tab; <S-h>/<S-l> navigate tabs.
       {
         mode = "n";
         key = "<S-h>";
-        action = "<cmd>bprevious<cr>";
-        options.desc = "Previous buffer";
+        action.__raw = ''function() vim.fn.system({ "zellij", "action", "go-to-previous-tab" }) end'';
+        options.desc = "Previous file tab";
       }
       {
         mode = "n";
         key = "<S-l>";
-        action = "<cmd>bnext<cr>";
-        options.desc = "Next buffer";
+        action.__raw = ''function() vim.fn.system({ "zellij", "action", "go-to-next-tab" }) end'';
+        options.desc = "Next file tab";
       }
       {
         mode = "n";
         key = "<C-Tab>"; # best effort
-        action = "<cmd>bnext<cr>";
-        options.desc = "Next buffer";
+        action.__raw = ''function() vim.fn.system({ "zellij", "action", "go-to-next-tab" }) end'';
+        options.desc = "Next file tab";
       }
-      # `<leader>bd` (Close buffer) is defined as a smart function in
-      # extraConfigLua so closing your last file never quits Neovim.
+      {
+        mode = "n";
+        key = "<leader>bd";
+        action = "<cmd>q<cr>";
+        options.desc = "Close file tab";
+      }
       {
         mode = "n";
         key = "<Esc>";

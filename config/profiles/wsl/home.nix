@@ -26,37 +26,58 @@ let
   zellijBin = "${pkgs.zellij}/bin/zellij";
   lazygitBin = "${pkgs.lazygit}/bin/lazygit";
 
-  # The `coding` layout puts yazi (left) and Neovim (right) in separate zellij
-  # panes, so opening a file means handing it from one pane to the other. The
-  # bridge is a Neovim server socket: Neovim listens on it, and yazi's `edit`
-  # opener sends the picked file with `nvim --server <sock> --remote`.
-  #
-  # The socket PATH is derived independently in each pane from the tab's start
-  # directory ($PWD at launch, identical for both panes and stable even after you
-  # cd around inside yazi). Deriving it rather than exporting it is deliberate:
-  # panes spawned by `zellij action new-tab` do not reliably inherit the
-  # launcher's environment, so a shared env var could not be trusted — a hash of
-  # the start dir can. Different projects hash to different sockets, so multiple
-  # `coding` tabs never cross their bridges.
-  codingSockSnippet = ''
-    sock="''${XDG_RUNTIME_DIR:-/tmp}/nvim-coding-$(printf '%s' "$PWD" | ${pkgs.coreutils}/bin/sha1sum | ${pkgs.coreutils}/bin/cut -c1-16).sock"
+  # KDL layout template for per-file tabs. At runtime, open-file-in-tab
+  # substitutes __NAME__ (tab label) and __FILE__ (absolute path for nvim).
+  zellijFileTabLayout = pkgs.writeText "zellij-file-tab.kdl" ''
+    layout {
+        default_tab_template {
+            pane size=1 borderless=true {
+                plugin location="zellij:tab-bar"
+            }
+            children
+            pane size=1 borderless=true {
+                plugin location="file:${pkgs.zellijPlugins.zjstatus}" {
+                    format_left   "#[fg=#cba6f7,bold] {session} "
+                    format_center ""
+                    format_right  "{command_git_branch}{datetime}"
+
+                    command_git_branch {
+                        command  "bash"
+                        args     "-c" "git -C #{cwd} branch --show-current 2>/dev/null"
+                        format   "#[fg=#a6e3a1]  {stdout} "
+                        interval "5"
+                    }
+
+                    datetime {
+                        format   "#[fg=#6c7086,italic] %H:%M "
+                        timezone "Europe/Paris"
+                    }
+                }
+            }
+        }
+        tab name="__NAME__" focus=true {
+            pane {
+                command "${nvimBin}"
+                args "__FILE__"
+            }
+        }
+    }
   '';
 
-  # Left pane: yazi, with the target socket exported so its `edit` opener (a
-  # child process) still points at this tab's Neovim after you navigate in yazi.
-  codingYazi = pkgs.writeShellScript "coding-yazi" ''
-    ${codingSockSnippet}
-    export YAZI_NVIM_SOCK="$sock"
-    exec ${config.programs.yazi.finalPackage}/bin/yazi "$@"
-  '';
-
-  # Right pane: Neovim listening on that socket. rm -f clears a stale socket left
-  # by a crash; because a different project hashes elsewhere, it never disturbs
-  # another running IDE.
-  codingNvim = pkgs.writeShellScript "coding-nvim" ''
-    ${codingSockSnippet}
-    rm -f "$sock"
-    exec ${nvimBin} --listen "$sock" "$@"
+  # Opens $1 in a fresh Zellij tab with its own Neovim instance. Yazi's `edit`
+  # opener calls this so Zellij's tab bar becomes the "open files" list instead
+  # of bufferline inside Neovim. Extra args (e.g. +42) are passed to nvim.
+  openFileInTab = pkgs.writeShellScript "open-file-in-tab" ''
+    file=$(${pkgs.coreutils}/bin/realpath -- "$1")
+    name=$(${pkgs.coreutils}/bin/basename -- "$file")
+    dir=$(${pkgs.coreutils}/bin/dirname -- "$file")
+    layout=$(${pkgs.coreutils}/bin/mktemp --suffix=.kdl)
+    ${pkgs.gnused}/bin/sed \
+      -e "s|__NAME__|$name|" \
+      -e "s|__FILE__|$file|" \
+      "${zellijFileTabLayout}" > "$layout"
+    ${zellijBin} action new-tab --layout "$layout" --cwd "$dir"
+    ${pkgs.coreutils}/bin/rm -f "$layout"
   '';
 in
 {
@@ -135,17 +156,22 @@ in
         zellij action new-tab --layout coding --cwd "$dir" --name "$tab_name"
       else
         local session_name="coding-''${dir:t}"
-        if zellij list-sessions 2>/dev/null | grep -qF "$session_name"; then
+        local _sessions
+        _sessions=$(zellij list-sessions 2>/dev/null)
+        # A live session has the name but no EXITED marker; an exited one shows
+        # "(EXITED - attach to resurrect)" — attaching resurrects it as a bare
+        # shell without the layout, which is the "run twice" bug. Delete the
+        # zombie and start fresh instead.
+        local _live
+        _live=$(echo "$_sessions" | grep -F "$session_name" | grep -vi 'EXITED')
+        if [[ -n "$_live" ]]; then
           ( builtin cd -- "$dir" && zellij attach "$session_name" )
         else
-          # Name the new session (-s, so the Windows Terminal tab is readable)
-          # and load the predefined `coding` layout as a fresh session.
+          zellij delete-session "$session_name" 2>/dev/null
           # Use -n/--new-session-with-layout, NOT --layout: with -s present,
           # `--layout coding` means "add a tab to session coding-<dir>", which
           # doesn't exist yet, so zellij errors "Session not found". -n always
-          # starts a new session, so it composes with -s. This is the single
-          # source of truth for the yazi+editor panes — same `coding` layout
-          # the in-session new-tab path (zellij action new-tab) uses.
+          # starts a new session, so it composes with -s.
           ( builtin cd -- "$dir" && zellij -s "$session_name" -n coding )
         fi
       fi
@@ -186,13 +212,7 @@ in
     rest="''${clean#*:}"
     line="''${rest%%:*}"
     abs=$(realpath -- "$file")
-    local sock="''${XDG_RUNTIME_DIR:-/tmp}/nvim-coding-$(printf '%s' "$PWD" | ${pkgs.coreutils}/bin/sha1sum | ${pkgs.coreutils}/bin/cut -c1-16).sock"
-    if [[ -S "$sock" ]]; then
-      ${nvimBin} --server "$sock" --remote-send ":e +''${line} ''${abs}<CR>"
-      ${zellijBin} action move-focus right 2>/dev/null
-    else
-      ${nvimBin} +"''${line}" -- "$abs"
-    fi
+    ${openFileInTab} "$abs" "+$line"
   }
 '';
 
@@ -220,22 +240,15 @@ in
         sort_dir_first = true;
       };
 
-      # Open (Enter) hands the file to this tab's Neovim over its socket, then
-      # moves zellij focus right so you land in the editor. block=false keeps
-      # yazi running as the sidebar instead of suspending it. The prepend rule
-      # routes every file through this opener (yazi enters directories itself, so
-      # they never reach it); $YAZI_NVIM_SOCK is exported by the coding-yazi
-      # wrapper and resolves to the same socket the Neovim pane listens on.
-      #
-      # realpath makes the path absolute first: yazi may hand the opener a path
-      # relative to *its* cwd, but `nvim --remote` resolves relative paths against
-      # the editor's cwd — so once you've navigated into a subdirectory in yazi,
-      # a bare name would open the wrong file (or a new empty one). $1 is the
-      # hovered file (openers run via `sh -c`, files as positional args).
+      # Open (Enter) creates a new Zellij tab for the picked file, each with its
+      # own Neovim instance. block=false keeps yazi running as the sidebar.
+      # The prepend rule routes every file through this opener (yazi enters
+      # directories itself, so they never reach it). realpath makes the path
+      # absolute so open-file-in-tab always gets an unambiguous path.
       opener.edit = [
         {
-          run = "${nvimBin} --server \"$YAZI_NVIM_SOCK\" --remote \"$(${pkgs.coreutils}/bin/realpath -- \"$1\")\" && ${zellijBin} action move-focus right";
-          desc = "Open in Neovim (right pane)";
+          run = "${openFileInTab} \"$1\"";
+          desc = "Open in new Zellij tab";
           block = false;
         }
       ];
@@ -274,6 +287,31 @@ in
     # needs (press `e` to open the embedded shell in a lazygit split).
     layouts.git = ''
       layout {
+          default_tab_template {
+              pane size=1 borderless=true {
+                  plugin location="zellij:tab-bar"
+              }
+              children
+              pane size=1 borderless=true {
+                  plugin location="file:${pkgs.zellijPlugins.zjstatus}" {
+                      format_left   "#[fg=#cba6f7,bold] {session} "
+                      format_center ""
+                      format_right  "{command_git_branch}{datetime}"
+
+                      command_git_branch {
+                          command  "bash"
+                          args     "-c" "git -C #{cwd} branch --show-current 2>/dev/null"
+                          format   "#[fg=#a6e3a1]  {stdout} "
+                          interval "5"
+                      }
+
+                      datetime {
+                          format   "#[fg=#6c7086,italic] %H:%M "
+                          timezone "Europe/Paris"
+                      }
+                  }
+              }
+          }
           tab name="git" focus=true {
               pane name="lazygit" focus=true {
                   command "${lazygitBin}"
@@ -282,34 +320,53 @@ in
       }
     '';
 
-    # VSCode-style IDE workspace launched by the `coding` shell function:
+    # IDE workspace launched by the `coding` shell function:
     #
     #   ┌ files ┐┌──────── editor (nvim) ────────┐
     #   │ yazi  ││                               │
     #   │       │├────────── terminal ───────────┤
     #   └───────┘└───────────────────────────────┘
     #
-    # yazi is the file manager in a persistent left pane; Neovim fills the right,
-    # with a shell strip beneath it. Every pane starts in the project directory
-    # (`coding` passes it as the tab cwd), so the editor, terminal and yazi all
-    # root there. Focus starts in yazi so you begin by browsing; Enter on a file
-    # opens it in the editor and hops focus right (see the `edit` opener above).
-    #
-    # The panes run wrappers, not bare `nvim`/`yazi`, so the two ends of the
-    # file-open bridge agree on a socket (see codingNvim / codingYazi at the top
-    # of this file). The shell strip is named "terminal" (instead of zellij's
-    # default "Pane #2"); Alt-t stacks more terminals onto it VSCode-style (see
-    # keybinds below).
+    # yazi is the file manager in the left pane. Enter on a file calls
+    # open-file-in-tab which opens a NEW Zellij tab for that file; Zellij's
+    # tab bar serves as the "open files" list instead of bufferline inside Neovim.
+    # The right pane hosts Neovim for quick in-workspace edits, and a shell strip
+    # beneath it. Alt-t stacks more terminals onto it VSCode-style (see keybinds).
     layouts.coding = ''
       layout {
+          default_tab_template {
+              pane size=1 borderless=true {
+                  plugin location="zellij:tab-bar"
+              }
+              children
+              pane size=1 borderless=true {
+                  plugin location="file:${pkgs.zellijPlugins.zjstatus}" {
+                      format_left   "#[fg=#cba6f7,bold] {session} "
+                      format_center ""
+                      format_right  "{command_git_branch}{datetime}"
+
+                      command_git_branch {
+                          command  "bash"
+                          args     "-c" "git -C #{cwd} branch --show-current 2>/dev/null"
+                          format   "#[fg=#a6e3a1]  {stdout} "
+                          interval "5"
+                      }
+
+                      datetime {
+                          format   "#[fg=#6c7086,italic] %H:%M "
+                          timezone "Europe/Paris"
+                      }
+                  }
+              }
+          }
           tab name="code" focus=true {
               pane split_direction="vertical" {
                   pane size="24%" name="files" focus=true {
-                      command "${codingYazi}"
+                      command "${config.programs.yazi.finalPackage}/bin/yazi"
                   }
                   pane split_direction="horizontal" {
                       pane size="80%" name="editor" {
-                          command "${codingNvim}"
+                          command "${nvimBin}"
                       }
                       pane size="20%" name="terminal"
                   }
