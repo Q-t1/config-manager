@@ -105,6 +105,13 @@ in
       # the top of the editor pane (files arrive via --remote-tab from yazi/fif).
       showtabline = 2;
 
+      # Spell checking is turned on per-filetype (markdown/gitcommit/text) by an
+      # autocmd in extraConfigLua, not globally — code buffers stay quiet. These
+      # just configure it: `camel` splits CamelCase so identifiers in prose are
+      # checked word-by-word instead of flagged whole.
+      spelllang = "en";
+      spelloptions = "camel";
+
       updatetime = 200;
       timeoutlen = 300;
     };
@@ -135,9 +142,59 @@ in
       notify.enable = true; # VSCode-style toast notifications
       rainbow-delimiters.enable = true; # bracket-pair colorization
 
+      # nvim-colorizer: render hex / rgb / named colors as inline swatches. Most
+      # useful on the theme values scattered through these configs (#cba6f7 …),
+      # so you see the actual color while editing catppuccin/zjstatus palettes.
+      colorizer.enable = true;
+
       lualine = {
         enable = true;
-        settings.options.theme = "auto"; # follow the active (catppuccin) colorscheme
+        settings = {
+          options.theme = "auto"; # follow the active (catppuccin) colorscheme
+          # Make the diagnostics counter a first-class, always-visible indicator
+          # (error/warn/info/hint with the same Nerd Font glyphs as the gutter
+          # signs) and show which LSP client is attached, so "is the server even
+          # running?" is answerable at a glance. Otherwise mirrors the default
+          # section layout.
+          sections = {
+            lualine_b = [
+              "branch"
+              "diff"
+            ];
+            lualine_c = [
+              "filename"
+              {
+                __unkeyed-1 = "diagnostics";
+                sources = [ "nvim_diagnostic" ];
+                symbols = {
+                  error = " ";
+                  warn = " ";
+                  info = " ";
+                  hint = " ";
+                };
+                update_in_insert = false;
+              }
+            ];
+            lualine_x = [
+              # Names of the LSP clients attached to the current buffer, or a
+              # muted "no LSP" when none — the at-a-glance "is a server live?".
+              {
+                __unkeyed-1.__raw = ''
+                  function()
+                    local names = {}
+                    for _, c in ipairs(vim.lsp.get_clients({ bufnr = 0 })) do
+                      names[#names + 1] = c.name
+                    end
+                    if #names == 0 then return "no LSP" end
+                    return " " .. table.concat(names, ",")
+                  end
+                '';
+              }
+              "encoding"
+              "filetype"
+            ];
+          };
+        };
       };
 
       # ---- Navigation -------------------------------------------------------
@@ -340,6 +397,19 @@ in
 
           # Shell
           bashls.enable = true;
+
+          # Docker — you run Docker in this WSL profile; completion/hover for
+          # Dockerfile directives and image references.
+          dockerls.enable = true;
+
+          # TOML (starship.toml, Cargo, CI configs). taplo also formats TOML —
+          # wired into conform below.
+          taplo.enable = true;
+
+          # Markdown — cross-file link/heading completion and go-to-definition
+          # for the docs in these repos, complementing render-markdown's
+          # in-buffer rendering.
+          marksman.enable = true;
         };
         keymaps = {
           lspBuf = {
@@ -372,6 +442,7 @@ in
             markdown = [ "prettierd" ];
             lua = [ "stylua" ];
             sh = [ "shfmt" ];
+            toml = [ "taplo" ];
           };
           format_on_save = {
             lsp_format = "fallback";
@@ -617,6 +688,18 @@ in
           if vim.bo.buftype == "" and vim.fn.mode() ~= "c" then
             vim.cmd("checktime")
           end
+        end,
+      })
+
+      -- Spell checking on prose buffers only (markdown/docs, git commit &
+      -- rebase messages, plain text). Left off in code so it never flags Nix
+      -- attrs or identifiers; `spelloptions=camel` (set in opts) still splits
+      -- CamelCase words here. Correct under the cursor with `z=`, add with `zg`.
+      vim.api.nvim_create_autocmd("FileType", {
+        pattern = { "markdown", "gitcommit", "gitrebase", "text" },
+        desc = "Enable spell check on prose buffers",
+        callback = function()
+          vim.opt_local.spell = true
         end,
       })
 
@@ -1155,6 +1238,42 @@ in
         key = "<leader>xx";
         action = "<cmd>Trouble diagnostics toggle<cr>";
         options.desc = "Problems (Trouble)";
+      }
+      {
+        mode = "n";
+        key = "<leader>xX";
+        action = "<cmd>Trouble diagnostics toggle filter.buf=0<cr>";
+        options.desc = "Problems: current buffer";
+      }
+      {
+        mode = "n";
+        key = "<leader>xs";
+        action = "<cmd>Trouble symbols toggle focus=false<cr>";
+        options.desc = "Symbols (Trouble)";
+      }
+      {
+        mode = "n";
+        key = "<leader>xr";
+        action = "<cmd>Trouble lsp toggle focus=false win.position=right<cr>";
+        options.desc = "LSP references/defs (Trouble)";
+      }
+      {
+        mode = "n";
+        key = "<leader>xt";
+        action = "<cmd>TodoTrouble<cr>";
+        options.desc = "TODOs (Trouble)";
+      }
+      {
+        mode = "n";
+        key = "<leader>xq";
+        action = "<cmd>Trouble qflist toggle<cr>";
+        options.desc = "Quickfix list (Trouble)";
+      }
+      {
+        mode = "n";
+        key = "<leader>xl";
+        action = "<cmd>Trouble loclist toggle<cr>";
+        options.desc = "Location list (Trouble)";
       }
 
       # -- File tabs (Neovim tabline) ----------------------------------------
