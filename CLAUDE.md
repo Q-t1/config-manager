@@ -57,12 +57,21 @@ Standalone NixOS modules imported explicitly by profiles that need them:
 - `user-qt1-server.nix` — user account setup for server hosts
 - `nix-settings.nix` — experimental features (always applied via `flake.nix`)
 
+One directory here is a **Home Manager** module, imported from a profile's
+`home.nix` rather than its `configuration.nix`:
+- `coding-ide/` — the `coding` IDE (yazi + zellij + nixvim). `default.nix` is
+  the yazi/zellij workspace, `nvim.nix` the editor. Exposes one option,
+  `programs.codingIde.clipboardProvider` (`wsl` | `osc52` | `none`), so each
+  profile picks how the clipboard is reached. Imported by wsl (`wsl`) and
+  orbstack (`osc52`). Pulls the unfree `claude-code`, so an importing profile
+  needs `nixpkgs.config.allowUnfree = true`.
+
 ### Profile matrix
 
 | Profile  | System        | Kind  | Notes                                      |
 |----------|---------------|-------|--------------------------------------------|
 | wsl      | x86_64-linux  | nixos | WSL2, Docker, Zen Browser, bleu rootCA     |
-| orbstack | aarch64-linux | nixos | LXC container inside OrbStack on macOS     |
+| orbstack | aarch64-linux | nixos | LXC container inside OrbStack on macOS; coding-ide |
 | infra-t0 | x86_64-linux  | nixos | Bare-metal server, static IP 192.168.1.230 |
 | infra-t1 | x86_64-linux  | nixos | Bare-metal server                          |
 

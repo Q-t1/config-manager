@@ -33,6 +33,10 @@
 
   security.sudo.wheelNeedsPassword = false;
 
+  # The coding-ide module (imported by home.nix) bundles claude-code, which is
+  # unfree; allow it as the wsl/infra-t1 profiles do.
+  nixpkgs.config.allowUnfree = true;
+
   # This being `true` leads to a few nasty bugs, change at your own risk!
   users.mutableUsers = false;
 

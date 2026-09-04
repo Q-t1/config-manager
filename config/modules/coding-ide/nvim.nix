@@ -1,4 +1,5 @@
-# Fully declarative Neovim IDE (nixvim), scoped to the WSL profile.
+# Fully declarative Neovim IDE (nixvim), the editor half of the coding-ide
+# module (see ./default.nix for the yazi + zellij workspace around it).
 #
 # Goal: an IntelliJ-class editor for Nix / JSON / YAML / kustomize / Helm /
 # Kubernetes descriptors. Every plugin is pinned by the `nixvim` flake input —
@@ -9,10 +10,70 @@
   inputs,
   pkgs,
   lib,
+  config,
   ...
 }:
 
 let
+  # How Neovim reaches the system clipboard. Set by the profile via the
+  # `programs.codingIde.clipboardProvider` option (declared in default.nix):
+  # "wsl" bridges to Windows (WSLg), "osc52" uses terminal escapes that work
+  # headless / over SSH (OrbStack containers), "none" leaves autodetection be.
+  clipboardProvider = config.programs.codingIde.clipboardProvider;
+
+  # WSL: try the fast native Wayland path (wl-copy/wl-paste) and fall back to
+  # the always-present Windows tools (clip.exe / PowerShell Get-Clipboard),
+  # since WSLg's Wayland socket isn't always reachable (detached shells, some
+  # multiplexer contexts return "connection refused").
+  wslClipboardLua = ''
+    local function wsl_copy(lines)
+      local text = table.concat(lines, "\n")
+      vim.fn.system({ "wl-copy", "--type", "text/plain" }, text)
+      if vim.v.shell_error ~= 0 then
+        vim.fn.system({ "clip.exe" }, text)
+      end
+    end
+    local function wsl_paste()
+      local out = vim.fn.systemlist({ "wl-paste", "--no-newline" })
+      if vim.v.shell_error ~= 0 then
+        out = vim.fn.systemlist({ "powershell.exe", "-NoProfile", "-Command", "Get-Clipboard" })
+        for i, line in ipairs(out) do
+          out[i] = (line:gsub("\r$", ""))
+        end
+        if #out > 0 and out[#out] == "" then
+          table.remove(out)
+        end
+      end
+      return out
+    end
+    vim.g.clipboard = {
+      name = "wsl-native-fallback",
+      copy = { ["+"] = wsl_copy, ["*"] = wsl_copy },
+      paste = { ["+"] = wsl_paste, ["*"] = wsl_paste },
+    }
+  '';
+
+  # OSC 52: the terminal emulator owns the clipboard, so yank works with no
+  # display server — the right choice inside a headless container (OrbStack)
+  # reached over a terminal. Paste over OSC 52 needs terminal support; where it
+  # is missing, `"+p` simply no-ops (yank still works).
+  osc52ClipboardLua = ''
+    local osc52 = require("vim.ui.clipboard.osc52")
+    vim.g.clipboard = {
+      name = "OSC 52",
+      copy = { ["+"] = osc52.copy("+"), ["*"] = osc52.copy("*") },
+      paste = { ["+"] = osc52.paste("+"), ["*"] = osc52.paste("*") },
+    }
+  '';
+
+  clipboardLua =
+    {
+      wsl = wslClipboardLua;
+      osc52 = osc52ClipboardLua;
+      none = "";
+    }
+    .${clipboardProvider};
+
   # vscode-langservers-extracted 4.10.0 ships a broken JSON server bundle: it
   # mixes CommonJS `require()` with a lone `import.meta.url`, so Node 24 can run
   # it as neither (as ESM `require` is undefined; as CJS `import.meta` is a
@@ -566,36 +627,9 @@ in
         end
       end, { desc = "Click to edit (enter insert mode)" })
 
-      -- WSL clipboard bridge. WSLg's Wayland socket isn't always reachable
-      -- (detached shells and some multiplexer contexts return "connection
-      -- refused"), which silently breaks yank/paste to the Windows clipboard.
-      -- Try the fast native path first (wl-copy / wl-paste) and fall back to
-      -- the always-present Windows tools (clip.exe / PowerShell Get-Clipboard).
-      local function wsl_copy(lines)
-        local text = table.concat(lines, "\n")
-        vim.fn.system({ "wl-copy", "--type", "text/plain" }, text)
-        if vim.v.shell_error ~= 0 then
-          vim.fn.system({ "clip.exe" }, text)
-        end
-      end
-      local function wsl_paste()
-        local out = vim.fn.systemlist({ "wl-paste", "--no-newline" })
-        if vim.v.shell_error ~= 0 then
-          out = vim.fn.systemlist({ "powershell.exe", "-NoProfile", "-Command", "Get-Clipboard" })
-          for i, line in ipairs(out) do
-            out[i] = (line:gsub("\r$", ""))
-          end
-          if #out > 0 and out[#out] == "" then
-            table.remove(out)
-          end
-        end
-        return out
-      end
-      vim.g.clipboard = {
-        name = "wsl-native-fallback",
-        copy = { ["+"] = wsl_copy, ["*"] = wsl_copy },
-        paste = { ["+"] = wsl_paste, ["*"] = wsl_paste },
-      }
+      -- System-clipboard bridge, chosen per profile (see clipboardProvider in
+      -- the let block: WSL → Windows tools, OrbStack → OSC 52 terminal escapes).
+      ${clipboardLua}
 
       -- Select-to-copy: releasing a mouse drag-selection yanks it to the system
       -- clipboard, so selecting with the mouse copies like a terminal/VSCode do.
