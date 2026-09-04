@@ -29,8 +29,15 @@
     createHome = true;
     home = "/home/${username}";
     homeMode = "700";
-    useDefaultShell = true;
+    # zsh, not the default bash: the coding-ide module ships its whole
+    # interactive surface (`coding`, `gitview`, `fif`) via
+    # programs.zsh.initContent, so a bash login shell hides the IDE entirely.
+    shell = pkgs.zsh;
   };
+
+  # Required for `shell = pkgs.zsh` above to be a usable login shell (adds it
+  # to /etc/shells and installs the system-wide zsh setup).
+  programs.zsh.enable = true;
 
   security.sudo.wheelNeedsPassword = false;
 
