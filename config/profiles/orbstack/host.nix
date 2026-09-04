@@ -1,1 +1,1 @@
-{ system = "aarch64-linux"; kind = "nixos"; }
+{ system = "aarch64-linux"; kind = "nixos"; username = "quentin"; }

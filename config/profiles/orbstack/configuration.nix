@@ -2,6 +2,7 @@
   config,
   pkgs,
   modulesPath,
+  username,
   ...
 }:
 
@@ -15,7 +16,7 @@
     ./orbstack.nix
   ];
 
-  users.users.qt1 = {
+  users.users.${username} = {
     uid = 501;
     extraGroups = [
       "wheel"
@@ -26,7 +27,7 @@
     isSystemUser = true;
     group = "users";
     createHome = true;
-    home = "/home/qt1";
+    home = "/home/${username}";
     homeMode = "700";
     useDefaultShell = true;
   };

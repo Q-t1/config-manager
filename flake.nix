@@ -25,6 +25,8 @@
     }:
     let
       lib = nixpkgs.lib;
+      # Default account name, used by every profile that doesn't set its own
+      # `username` in host.nix (see orbstack/host.nix for an override example).
       username = "qt1";
       stateVersion = "26.05";
 
@@ -32,9 +34,14 @@
 
       hosts = lib.mapAttrs (
         name: _:
-        (import "${profilesDir}/${name}/host.nix") // {
+        let
+          hostCfg = import "${profilesDir}/${name}/host.nix";
+          hostUsername = hostCfg.username or username;
+        in
+        hostCfg // {
           profile = name;
-          homeDirectory = "/home/${username}";
+          username = hostUsername;
+          homeDirectory = "/home/${hostUsername}";
         }
       ) (lib.filterAttrs (_: type: type == "directory") (builtins.readDir profilesDir));
 
@@ -44,7 +51,8 @@
           ./config/profiles/${host.profile}/home.nix
         ];
         home = {
-          inherit username stateVersion;
+          inherit stateVersion;
+          username = host.username;
           homeDirectory = host.homeDirectory;
         };
         programs.home-manager.enable = true;
@@ -55,8 +63,8 @@
         home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.${host.system};
           extraSpecialArgs = {
-            inherit inputs username;
-            inherit (host) profile system;
+            inherit inputs;
+            inherit (host) profile system username;
           };
           modules = [ (mkHmModule host) ];
         };
@@ -66,8 +74,8 @@
         lib.nixosSystem {
           system = host.system;
           specialArgs = {
-            inherit inputs username;
-            inherit (host) profile system;
+            inherit inputs;
+            inherit (host) profile system username;
           };
 
           modules = [
@@ -80,10 +88,10 @@
               home-manager.useUserPackages = true;
               home-manager.backupFileExtension = "backup";
               home-manager.extraSpecialArgs = {
-                inherit inputs username;
-                inherit (host) profile system;
+                inherit inputs;
+                inherit (host) profile system username;
               };
-              home-manager.users.${username} = mkHmModule host;
+              home-manager.users.${host.username} = mkHmModule host;
             }
           ] ++ lib.optionals (host.kind == "nixos" && host.profile == "wsl") [
             inputs.nixos-wsl.nixosModules.wsl
