@@ -11,6 +11,7 @@
   pkgs,
   lib,
   config,
+  profile,
   ...
 }:
 
@@ -417,18 +418,19 @@ in
           # Nix. Point nixd at this flake so option completion/hover is the
           # real thing: `nixos.options` drives configuration.nix files and
           # `home-manager.options` (the per-user submodule, extracted from the
-          # embedded HM in nixosConfigurations.wsl) drives home.nix files, so
-          # typing `programs.` here completes against the modules actually in
-          # scope. `${inputs.self}` is the flake's store path — option *names*
-          # come from the modules, not your values, so a pinned snapshot is
-          # fine; nixpkgs.expr uses the flake's own pinned nixpkgs.
+          # embedded HM) drives home.nix files, so typing `programs.` here
+          # completes against the modules actually in scope. Scoped to *this*
+          # profile's own config (`nixosConfigurations.${profile}`) since the
+          # module is shared across hosts. `${inputs.self}` is the flake's store
+          # path — option *names* come from the modules, not your values, so a
+          # pinned snapshot is fine; nixpkgs.expr uses the flake's pinned nixpkgs.
           nixd = {
             enable = true;
             settings = {
               nixpkgs.expr = ''import (builtins.getFlake "${inputs.self}").inputs.nixpkgs { }'';
               options = {
-                nixos.expr = ''(builtins.getFlake "${inputs.self}").nixosConfigurations.wsl.options'';
-                home-manager.expr = ''(builtins.getFlake "${inputs.self}").nixosConfigurations.wsl.options.home-manager.users.type.getSubOptions [ ]'';
+                nixos.expr = ''(builtins.getFlake "${inputs.self}").nixosConfigurations.${profile}.options'';
+                home-manager.expr = ''(builtins.getFlake "${inputs.self}").nixosConfigurations.${profile}.options.home-manager.users.type.getSubOptions [ ]'';
               };
             };
           };
