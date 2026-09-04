@@ -101,6 +101,10 @@ in
       splitright = true;
       splitbelow = true;
 
+      # Always show the tabline so open files are visible as horizontal tabs at
+      # the top of the editor pane (files arrive via --remote-tab from yazi/fif).
+      showtabline = 2;
+
       updatetime = 200;
       timeoutlen = 300;
     };
@@ -140,6 +144,18 @@ in
       # The file manager is yazi, running as its own persistent left zellij pane
       # (see home.nix). It opens files here over a socket, so nothing about the
       # tree lives in this file. Telescope stays for fuzzy find / grep / symbols.
+
+      # flash.nvim: label-based on-screen jumps (the IntelliJ/AceJump motion).
+      # `s` + two chars labels every match to hop anywhere visible; `S` jumps by
+      # treesitter node. Keymaps wired in extraConfigLua so `S` can skip visual
+      # mode (nvim-surround owns visual `S`).
+      flash.enable = true;
+
+      # aerial.nvim: a persistent symbol outline (functions/keys/types) for the
+      # current file — the panel complement to telescope's one-shot symbol
+      # picker. Toggled with <leader>co. Fed by treesitter/LSP (both enabled).
+      aerial.enable = true;
+
       telescope = {
         enable = true;
         extensions.fzf-native.enable = true;
@@ -173,6 +189,12 @@ in
       };
 
       # ---- Git --------------------------------------------------------------
+      # diffview.nvim: a proper side-by-side diff with a file-tree panel, plus
+      # per-file and per-branch commit history — the reviewing/history half of
+      # the git workflow (lazygit on <leader>gg stays the staging/commit half).
+      # Opened with <leader>gv / <leader>gh (see keymaps).
+      diffview.enable = true;
+
       # Signs in the gutter, plus buffer-local hunk keymaps wired via on_attach
       # (so they only bind in git-tracked buffers). Uses gitsigns' current
       # nav_hunk API — next_hunk/prev_hunk are @deprecated on 2.x and would emit
@@ -242,6 +264,13 @@ in
         };
       };
 
+      # ---- Session ----------------------------------------------------------
+      # persistence.nvim: save the open tabs/buffers per directory and restore
+      # them when the IDE is relaunched on that project (see the VimEnter hook
+      # in extraConfigLua). Makes a resurrected zellij `coding` session reopen
+      # where it left off instead of a blank editor.
+      persistence.enable = true;
+
       # ---- Diagnostics ------------------------------------------------------
       trouble.enable = true;
 
@@ -267,8 +296,24 @@ in
       lsp = {
         enable = true;
         servers = {
-          # Nix
-          nixd.enable = true;
+          # Nix. Point nixd at this flake so option completion/hover is the
+          # real thing: `nixos.options` drives configuration.nix files and
+          # `home-manager.options` (the per-user submodule, extracted from the
+          # embedded HM in nixosConfigurations.wsl) drives home.nix files, so
+          # typing `programs.` here completes against the modules actually in
+          # scope. `${inputs.self}` is the flake's store path — option *names*
+          # come from the modules, not your values, so a pinned snapshot is
+          # fine; nixpkgs.expr uses the flake's own pinned nixpkgs.
+          nixd = {
+            enable = true;
+            settings = {
+              nixpkgs.expr = ''import (builtins.getFlake "${inputs.self}").inputs.nixpkgs { }'';
+              options = {
+                nixos.expr = ''(builtins.getFlake "${inputs.self}").nixosConfigurations.wsl.options'';
+                home-manager.expr = ''(builtins.getFlake "${inputs.self}").nixosConfigurations.wsl.options.home-manager.users.type.getSubOptions [ ]'';
+              };
+            };
+          };
 
           # YAML — schema-aware validation for Kubernetes / kustomize manifests.
           # keyOrdering=false stops it from demanding alphabetical keys, and the
@@ -372,10 +417,27 @@ in
       vim.lsp.enable("helm_ls")
 
       -- The file manager is yazi, running as its own persistent left zellij pane
-      -- (see home.nix: the `coding` layout). Each file opened from yazi spawns a
-      -- fresh Zellij tab with its own Neovim; Zellij's tab bar is the open-file
-      -- list instead of bufferline. Ctrl-h and <C-b>/<leader>e move focus to the
-      -- yazi pane; <S-h>/<S-l> navigate Zellij tabs (open files).
+      -- (see home.nix: the `coding` layout). Neovim starts with --listen on a
+      -- session-scoped socket; yazi/fif open files via --remote-tab so they appear
+      -- as nvim tabs in the tabline at the top of the editor pane. <S-h>/<S-l>
+      -- navigate nvim tabs; <C-b>/<leader>e move focus to the yazi pane.
+
+      -- When the first file arrives via --remote-tab, Neovim opens a new tab
+      -- beside the initial empty scratch. Close the scratch so only real file
+      -- tabs remain. `once = true` makes the autocmd self-remove after firing.
+      vim.api.nvim_create_autocmd("TabNewEntered", {
+        desc = "Close initial empty scratch tab on first file open",
+        once = true,
+        callback = function()
+          if vim.fn.tabpagenr() == 2 then
+            local win = vim.fn.tabpagewinnr(1)
+            local buf = vim.fn.tabpagebuflist(1)[win]
+            if vim.api.nvim_buf_get_name(buf) == "" then
+              vim.cmd("1tabclose")
+            end
+          end
+        end,
+      })
 
       -- Claude Code integration — mirrors the VSCode/JetBrains extension:
       -- shared selection, in-editor diffs, and a `claude` terminal. auto_start
@@ -566,6 +628,7 @@ in
         { "<leader>c", group = "Code" },
         { "<leader>f", group = "Find" },
         { "<leader>g", group = "Git" },
+        { "<leader>q", group = "Session" },
         { "<leader>s", group = "Search / replace" },
         { "<leader>x", group = "Diagnostics" },
       })
@@ -666,6 +729,69 @@ in
           end
         end,
       })
+
+      -- Terminal tab system: <A-t> creates a new horizontal terminal tab,
+      -- <A-[> / <A-]> cycle through them in normal mode.
+      -- <leader>t toggles whichever terminal is currently active.
+      do
+        local term_count = 1
+        local term_active = 1
+
+        local function term_go(id)
+          vim.cmd("ToggleTerm count=" .. id)
+          term_active = id
+        end
+
+        vim.keymap.set("n", "<leader>t", function()
+          term_go(term_active)
+        end, { desc = "Toggle terminal" })
+
+        vim.keymap.set({ "n", "t" }, "<A-t>", function()
+          term_count = term_count + 1
+          term_go(term_count)
+        end, { desc = "New terminal tab" })
+
+        vim.keymap.set("n", "<A-[>", function()
+          if term_active > 1 then term_go(term_active - 1) end
+        end, { desc = "Previous terminal tab" })
+
+        vim.keymap.set("n", "<A-]>", function()
+          if term_active < term_count then term_go(term_active + 1) end
+        end, { desc = "Next terminal tab" })
+      end
+
+      -- flash.nvim jump motions. `s` + two chars labels every visible match and
+      -- teleports there (normal/visual/operator-pending). `S` jumps by treesitter
+      -- node, but only in normal/operator mode so nvim-surround keeps visual `S`
+      -- (add surround around a selection).
+      vim.keymap.set({ "n", "x", "o" }, "s", function()
+        require("flash").jump()
+      end, { desc = "Flash jump" })
+      vim.keymap.set({ "n", "o" }, "S", function()
+        require("flash").treesitter()
+      end, { desc = "Flash treesitter" })
+
+      -- persistence.nvim: auto-restore the session only when Neovim is launched
+      -- with no file arguments inside a zellij session — i.e. the `coding`
+      -- layout's bare `nvim` in a project dir. Single-file $EDITOR use (git
+      -- commit, kubectl edit → argc >= 1) is left untouched, matching the same
+      -- "opened on a project" gate the zellij tab-naming autocmd uses. `nested`
+      -- lets the restored buffers fire their own LSP/cursor autocmds.
+      vim.api.nvim_create_autocmd("VimEnter", {
+        desc = "Restore session on bare nvim in a project",
+        nested = true,
+        callback = function()
+          if vim.fn.argc() == 0 and vim.env.ZELLIJ ~= nil then
+            require("persistence").load()
+          end
+        end,
+      })
+      vim.keymap.set("n", "<leader>qs", function()
+        require("persistence").load()
+      end, { desc = "Restore session" })
+      vim.keymap.set("n", "<leader>qd", function()
+        require("persistence").stop()
+      end, { desc = "Stop saving session" })
     '';
 
     # Formatters / linters / kube tooling that must be on Neovim's PATH.
@@ -955,6 +1081,40 @@ in
         options.desc = "Format buffer";
       }
 
+      # -- Git: diff & history (diffview) ------------------------------------
+      {
+        mode = "n";
+        key = "<leader>gv";
+        action = "<cmd>DiffviewOpen<cr>";
+        options.desc = "Diff view (working tree)";
+      }
+      {
+        mode = "n";
+        key = "<leader>gV";
+        action = "<cmd>DiffviewClose<cr>";
+        options.desc = "Close diff view";
+      }
+      {
+        mode = "n";
+        key = "<leader>gh";
+        action = "<cmd>DiffviewFileHistory %<cr>";
+        options.desc = "File history (current file)";
+      }
+      {
+        mode = "n";
+        key = "<leader>gH";
+        action = "<cmd>DiffviewFileHistory<cr>";
+        options.desc = "File history (branch)";
+      }
+
+      # -- Code outline (aerial) ---------------------------------------------
+      {
+        mode = "n";
+        key = "<leader>co";
+        action = "<cmd>AerialToggle<cr>";
+        options.desc = "Code outline (aerial)";
+      }
+
       # -- Markdown ----------------------------------------------------------
       # Flip the current buffer between the rendered document and the raw
       # markdown source (render-markdown.nvim). Handy when editing tables/links
@@ -983,12 +1143,7 @@ in
         action = "<cmd>lua vim.fn.system({ 'zellij', 'action', 'move-focus', 'left' })<cr>";
         options.desc = "Focus file manager (yazi pane)";
       }
-      {
-        mode = "n";
-        key = "<leader>t";
-        action = "<cmd>ToggleTerm<cr>";
-        options.desc = "Toggle terminal";
-      }
+
       {
         mode = "t";
         key = "<Esc>";
@@ -1002,31 +1157,32 @@ in
         options.desc = "Problems (Trouble)";
       }
 
-      # -- File tabs (Zellij) -----------------------------------------------
-      # Each open file lives in its own Zellij tab; <S-h>/<S-l> navigate tabs.
+      # -- File tabs (Neovim tabline) ----------------------------------------
+      # Files are opened as nvim tabs (--remote-tab via yazi/fif); <S-h>/<S-l>
+      # navigate tabs and <leader>bd closes the current one.
       {
         mode = "n";
         key = "<S-h>";
-        action.__raw = ''function() vim.fn.system({ "zellij", "action", "go-to-previous-tab" }) end'';
+        action = "<cmd>tabprev<cr>";
         options.desc = "Previous file tab";
       }
       {
         mode = "n";
         key = "<S-l>";
-        action.__raw = ''function() vim.fn.system({ "zellij", "action", "go-to-next-tab" }) end'';
+        action = "<cmd>tabnext<cr>";
         options.desc = "Next file tab";
       }
       {
         mode = "n";
         key = "<C-Tab>"; # best effort
-        action.__raw = ''function() vim.fn.system({ "zellij", "action", "go-to-next-tab" }) end'';
+        action = "<cmd>tabnext<cr>";
         options.desc = "Next file tab";
       }
       {
         mode = "n";
         key = "<leader>bd";
         action = "<cmd>q<cr>";
-        options.desc = "Close file tab";
+        options.desc = "Close file";
       }
       {
         mode = "n";
