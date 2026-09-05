@@ -43,7 +43,7 @@ Adding a new host requires only a new directory with `host.nix`, `configuration.
 
 ### Layer order (NixOS hosts)
 
-1. `config/modules/nix-settings.nix` — always applied globally (enables flakes/nix-command)
+1. `config/modules/nix-settings.nix` and `config/modules/claude-code.nix` — always applied globally (nix experimental features; the `claude-code` overlay)
 2. `config/profiles/<profile>/configuration.nix` — system-level config; imports hardware, modules, etc.
 3. `config/common/home.nix` — shared Home Manager base (zsh, git, neovim, zed, nil/nixd LSPs)
 4. `config/profiles/<profile>/home.nix` — profile-specific Home Manager additions
@@ -56,6 +56,10 @@ Standalone NixOS modules imported explicitly by profiles that need them:
 - `openssh.nix` — SSH daemon
 - `user-qt1-server.nix` — user account setup for server hosts
 - `nix-settings.nix` — experimental features (always applied via `flake.nix`)
+- `claude-code.nix` — overlays `pkgs.claude-code` with the `claude-code` flake
+  input (`github:sadjow/claude-code-nix`, hourly upstream releases instead of
+  the slower nixpkgs one) and adds its cachix substituter; also always applied
+  via `flake.nix`, so every call site keeps using `pkgs.claude-code`
 
 One directory here is a **Home Manager** module, imported from a profile's
 `home.nix` rather than its `configuration.nix`:
@@ -63,8 +67,8 @@ One directory here is a **Home Manager** module, imported from a profile's
   the yazi/zellij workspace, `nvim.nix` the editor. Exposes one option,
   `programs.codingIde.clipboardProvider` (`wsl` | `osc52` | `none`), so each
   profile picks how the clipboard is reached. Imported by wsl (`wsl`) and
-  orbstack (`osc52`). Pulls the unfree `claude-code`, so an importing profile
-  needs `nixpkgs.config.allowUnfree = true`.
+  orbstack (`osc52`). Pulls the unfree `claude-code` (see `claude-code.nix`
+  above), so an importing profile needs `nixpkgs.config.allowUnfree = true`.
 
 ### Profile matrix
 

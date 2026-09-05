@@ -13,6 +13,11 @@
       url = "github:nix-community/nixvim";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # `claude` CLI, replacing the nixpkgs package (see
+    # config/modules/claude-code.nix). Deliberately not following our nixpkgs:
+    # a different nixpkgs changes the store path and loses the upstream cachix
+    # cache hits.
+    claude-code.url = "github:sadjow/claude-code-nix";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -61,7 +66,12 @@
       mkHome =
         _: host:
         home-manager.lib.homeManagerConfiguration {
-          pkgs = nixpkgs.legacyPackages.${host.system};
+          pkgs = import nixpkgs {
+            inherit (host) system;
+            overlays = [ inputs.claude-code.overlays.default ];
+            # claude-code is unfree, as it is for the nixos profiles.
+            config.allowUnfree = true;
+          };
           extraSpecialArgs = {
             inherit inputs;
             inherit (host) profile system username;
@@ -81,6 +91,7 @@
           modules = [
             inputs.determinate.nixosModules.default
             ./config/modules/nix-settings.nix
+            ./config/modules/claude-code.nix
             ./config/profiles/${host.profile}/configuration.nix
             home-manager.nixosModules.home-manager
             {
