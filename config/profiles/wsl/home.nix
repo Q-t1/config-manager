@@ -22,7 +22,6 @@
     kubeconform
     openssl
     fluxcd
-    claude-code
   ];
 
   programs.git.settings.user.email = lib.mkForce "quentin.roccia@bleucloud.fr";

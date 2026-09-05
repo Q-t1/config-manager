@@ -177,6 +177,9 @@ in
       fd # yazi's file finder + `s` name search (the `coding` left pane)
       ripgrep # yazi's content search and the `fif` function
       lazygit # full git UI; also the `git` zellij layout / gitview
+      # `claude` on the interactive shell's PATH. nvim.nix lists it too, but
+      # that only reaches the wrapped Neovim (claudecode.nvim), not the shell.
+      claude-code
     ];
 
     # Free Ctrl-S / Ctrl-Q from XON/XOFF flow control so the save keybind never
